@@ -91,22 +91,26 @@ async function fetchPopupPage(id, todayStr, futureLimit) {
 
     // 주소 추출 (다단계 시도)
     let address = '';
-    // 1차: 광역시·도 접두사 기준 (전국)
+    // 지역명 이후 반드시 행정구역 단위(구/군/동/로/길 등) 포함 여부 검증 (설명문 오인식 방지)
     const regionRx = /(?:서울|부산|대구|인천|광주|대전|울산|세종|경기|강원|충북|충남|전북|전남|경북|경남|제주)[가-힣0-9\s\-·,()]{4,60}/;
+    const hasAddrUnit = /[가-힣]{1,5}(?:시|구|군|읍|면|동|로|길)/;
+    // 1차: 광역시·도 접두사 + 행정구역 단위 포함
     const addrM1 = combined.match(regionRx);
-    if (addrM1) address = addrM1[0].trim().replace(/\s+/g, ' ');
-    // 2차: 도로명주소 패턴 (XX로/XX길 + 번지)
+    if (addrM1 && hasAddrUnit.test(addrM1[0])) {
+      address = addrM1[0].trim().replace(/\s+/g, ' ');
+    }
+    // 2차: 도로명주소 (XX로/XX길 + 숫자 번지 필수)
     if (!address) {
-      const roadRx = /[가-힣]{2,6}(?:로|길)\s*\d+(?:[가-힣\s\-\d()]*(?:층|호|번지)?){0,3}/;
+      const roadRx = /[가-힣]{2,6}(?:로|길)\s*\d+(?:-\d+)?(?:\s*[가-힣\d()]{0,10})?/;
       const addrM2 = combined.match(roadRx);
       if (addrM2) address = addrM2[0].trim().replace(/\s+/g, ' ');
     }
-    // 3차: og:description 메타태그에서 지역명 추출
+    // 3차: og:description 메타태그에서 추출 (행정구역 단위 검증 동일 적용)
     if (!address) {
       const ogMatch = html.match(/property="og:description"\s+content="([^"]{10,120})"/);
       if (ogMatch) {
         const m = ogMatch[1].match(regionRx);
-        if (m) address = m[0].trim().replace(/\s+/g, ' ');
+        if (m && hasAddrUnit.test(m[0])) address = m[0].trim().replace(/\s+/g, ' ');
       }
     }
     address = address.slice(0, 60);

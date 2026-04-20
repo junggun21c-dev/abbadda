@@ -1823,6 +1823,7 @@ function commitAddr(v, lat, lng, resolvedName) {
   showToast('📍 ' + label + ' 기준으로 저장됐어요');
   tourApiLoaded=false; loadEventsFromTourAPI();
   popupLoaded=false; if(userLat&&userLng) loadPopupsFromKakao();
+  dynamicCoursesLoaded=false; loadDynamicCourses();
 }
 function closeModal(){document.getElementById('modal').classList.remove('open');}
 function showToast(msg){
@@ -2298,8 +2299,8 @@ async function loadDynamicCourses() {
         const places = data.slice(0, 5);
         for (const place of places) {
           const pLat = parseFloat(place.y), pLng = parseFloat(place.x);
-          // 기존 코스와 너무 가까운 곳 중복 제거
-          const isDup = COURSES_DB.some(c => c.destLat && Math.abs(c.destLat - pLat) < 0.0015 && Math.abs(c.destLng - pLng) < 0.0015);
+          // 동일 카카오 URL 동적 코스만 중복 제거 (정적 코스와는 중복 허용)
+          const isDup = COURSES_DB.some(c => c.isDynamic && c.timeline && c.timeline[0] && c.timeline[0].kakaoUrl === place.place_url);
           if (isDup) continue;
           const km = haversineKm(userLat, userLng, pLat, pLng);
           const driveMin = kmToDriveMin(km);

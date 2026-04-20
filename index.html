@@ -1027,6 +1027,7 @@ async function loadEventsFromTourAPI() {
           startDateRaw: startDate.length===8 ? `${startDate.slice(0,4)}-${startDate.slice(4,6)}-${startDate.slice(6,8)}` : null,
           endDateRaw:   endDate.length===8   ? `${endDate.slice(0,4)}-${endDate.slice(4,6)}-${endDate.slice(6,8)}` : null,
           verified: true, contentId: item.contentid,
+          url: item.url || '',
           codename: item.codename || ''
         };
       }).filter(Boolean);

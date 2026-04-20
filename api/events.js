@@ -33,7 +33,8 @@ export default async function handler(req, res) {
       const body = data?.response?.body;
       const totalCount = body?.totalCount ?? '?';
       const resultCode = header?.resultCode;
-      debugLog.push(`[${code}] resultCode=${resultCode} totalCount=${totalCount}`);
+      const topKeys = Object.keys(data || {}).join(',');
+      debugLog.push(`[${code}] resultCode=${resultCode} totalCount=${totalCount} topKeys=${topKeys} raw=${text.slice(0,200)}`);
 
       if (resultCode && resultCode !== '0000') continue;
 

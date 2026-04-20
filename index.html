@@ -212,7 +212,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:#F5F3EF;min-height:100vh;d
 .stat-icon{font-size:18px;margin-bottom:3px;}
 .stat-val{font-size:12px;font-weight:700;color:#222;line-height:1.2;}
 .stat-lbl{font-size:9px;color:#999;margin-top:2px;}
-.detail-map-box{width:100%;height:220px;border-radius:14px;overflow:hidden;margin-bottom:0.9rem;background:#F5F3EF;border:1px solid #E8E4DC;display:flex;align-items:center;justify-content:center;font-size:13px;color:#aaa;}
+.detail-map-box{width:100%;height:280px;border-radius:14px;overflow:hidden;margin-bottom:0.9rem;background:#F5F3EF;border:1px solid #E8E4DC;display:flex;align-items:center;justify-content:center;font-size:13px;color:#aaa;}
 .detail-section-title{font-size:14px;font-weight:700;margin-bottom:10px;color:#222;}
 .route-btn-row{display:flex;gap:8px;margin-top:0.75rem;}.save-route-btn{display:flex;align-items:center;justify-content:center;gap:6px;flex:1;background:#FF6B35;color:white;border:none;border-radius:11px;padding:12px;font-size:14px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;transition:background 0.15s;}.url-copy-btn{display:flex;align-items:center;justify-content:center;gap:5px;flex:1;background:white;color:#555;border:1px solid #E0DDDA;border-radius:11px;padding:12px;font-size:14px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;transition:background 0.15s;}.url-copy-btn:active{background:#F5F4F2;}
 .save-route-btn:active{background:#E55A25;}
@@ -1369,7 +1369,7 @@ function renderCourses(animate){
   const pool=getFilteredPool();
   let unseen=pool.filter(c=>!shownCourseIds.has(c.id));
   if(unseen.length===0){shownCourseIds=new Set(); unseen=pool;}
-  const count = distMax===9999 ? 6 : 3;
+  const count = distMax===9999 ? 10 : 3;
   const picked = shuffle(unseen).slice(0, count);
   displayedCourses=picked;
   picked.forEach(c=>shownCourseIds.add(c.id));
@@ -1539,7 +1539,10 @@ async function renderCourseMap(c){
     const map=new kakao.maps.Map(box,{center,level:7});
     const bounds=new kakao.maps.LatLngBounds();
 
-    // 출발지/도착지 (현재 위치)
+    // 목적지는 항상 bounds에 포함
+    bounds.extend(center);
+
+    // 출발지 (현재 위치)
     const hasHome=(userLat&&userLng);
     const homeLatLng=hasHome?new kakao.maps.LatLng(userLat,userLng):null;
     if(homeLatLng){
@@ -1554,8 +1557,10 @@ async function renderCourseMap(c){
       return fc?{lat:fc.lat,lng:fc.lng,idx:i,name:s.place,type:s.type}:null;
     }).filter(Boolean);
 
+    // 좌표 없으면 목적지 마커만 표시 후 bounds 적용
     if(!valid.length){
-      if(!homeLatLng) new kakao.maps.Marker({position:center,map});
+      new kakao.maps.Marker({position:center,map});
+      map.setBounds(bounds,80,80,80,80);
       return;
     }
 
@@ -1564,26 +1569,18 @@ async function renderCourseMap(c){
       const pos=new kakao.maps.LatLng(p.lat,p.lng);
       bounds.extend(pos);
       stopPositions.push(pos);
-      const bg='#FF6B35';
       const num=p.idx+1;
-      const label=`<div style="background:${bg};color:white;border-radius:50%;width:26px;height:26px;line-height:26px;text-align:center;font-size:12px;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,0.35);border:2px solid white">${num}</div>`;
+      const label=`<div style="background:#FF6B35;color:white;border-radius:50%;width:26px;height:26px;line-height:26px;text-align:center;font-size:12px;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,0.35);border:2px solid white">${num}</div>`;
       new kakao.maps.CustomOverlay({position:pos,content:label,map,yAnchor:1.1});
     });
 
     // 동선: 집 → 1 → 2 → ... → 집 (round-trip polyline)
-    if(stopPositions.length>0){
-      const path=hasHome
-        ?[homeLatLng,...stopPositions,homeLatLng]
-        :stopPositions;
-      new kakao.maps.Polyline({
-        map,path,
-        strokeWeight:4,strokeColor:'#FF6B35',
-        strokeOpacity:0.85,strokeStyle:'solid'
-      });
-    }
+    const path=hasHome?[homeLatLng,...stopPositions,homeLatLng]:stopPositions;
+    new kakao.maps.Polyline({map,path,strokeWeight:4,strokeColor:'#FF6B35',strokeOpacity:0.85,strokeStyle:'solid'});
 
-    map.setBounds(bounds,60,60,60,60);
-    if(map.getLevel()>10)map.setLevel(10);
+    // 모든 경유지가 한눈에 보이도록 bounds 적용
+    map.setBounds(bounds,80,80,80,80);
+    if(map.getLevel()>12)map.setLevel(12);
   }catch(e){
     const box2=document.getElementById('courseMapBox');
     if(box2)box2.innerHTML='<span style="color:#aaa;font-size:13px">지도를 표시할 수 없어요</span>';

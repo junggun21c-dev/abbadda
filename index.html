@@ -1070,10 +1070,30 @@ function isEventActive(e) {
 function isVerified(e) { return e.verified !== false; }
 
 const EVENT_BLACKLIST=['아카데미','예술학교','학원','강좌','특강','수강','교육원','문화원 강'];
+
+// 실내/실외 분류 (행사·팝업 공통)
+function getPlaceType(name, loc, codename) {
+  const text = (name||'') + ' ' + (loc||'') + ' ' + (codename||'');
+  const indoorKw = ['미술관','박물관','갤러리','극장','공연장','아트센터','문화회관','전시관','전시실','실내','홀','콘서트홀','아쿠아리움','수족관','영화관','도서관','체험관','놀이관','쇼핑몰','백화점','몰'];
+  if (indoorKw.some(k => text.includes(k))) return '실내';
+  const outdoorKw = ['야외','공원','광장','거리','마당','잔디','강변','한강','노천','플리마켓','해변','나들이'];
+  if (outdoorKw.some(k => text.includes(k))) return '실외';
+  if (/전시|공연|뮤지컬|연극|클래식|오페라|발레|콘서트|영화/.test(codename||'')) return '실내';
+  if (/축제|마켓/.test(codename||'')) return '실외';
+  return '실외'; // 기본값
+}
+function getPopupPlaceType(p) {
+  const text = (p.name||'') + ' ' + (p.loc||'');
+  const outdoorKw = ['야외','공원','광장','플리마켓','마켓','가두'];
+  return outdoorKw.some(k => text.includes(k)) ? '실외' : '실내';
+}
+
 function getEventsByDist(){ return EVENTS_DB.filter(e=>{
   if(!isEventActive(e)) return false;
   if(!inDistRange(e.distMin)) return false;
   if(EVENT_BLACKLIST.some(kw=>(e.name||'').includes(kw))) return false;
+  if(catVal==='실내' && getPlaceType(e.name,e.loc,e.codename)!=='실내') return false;
+  if(catVal==='실외' && getPlaceType(e.name,e.loc,e.codename)!=='실외') return false;
   return true;
 }); }
 
@@ -1192,8 +1212,9 @@ function updateSub(){const al=getAgeLabel?getAgeLabel():(document.getElementById
 
 function setFilter(el,val){
   document.querySelectorAll('#catFilter .chip').forEach(c=>c.classList.remove('active'));
-  el.classList.add('active'); catVal=val; shownCourseIds=new Set(); renderCourses(true);
-  showToast('추천 코스가 변경되었습니다 ✨');
+  el.classList.add('active'); catVal=val; shownCourseIds=new Set();
+  renderEvents(); renderPopups(); renderCourses(true);
+  showToast(val==='전체'?'전체 행사·팝업·코스를 보여드려요 🗂️':val==='실내'?'실내 행사·팝업·코스만 보여드려요 🏠':'실외 행사·팝업·코스만 보여드려요 🌳');
 }
 
 function renderEvents(){
@@ -2078,8 +2099,12 @@ function renderPopups(){
     if(!p.endDateRaw) return true;
     return new Date(p.endDateRaw)>=today;
   });
-  const active=all.filter(p=>!p.distMin||inDistRange(p.distMin))
-    .sort((a,b)=>(a.distMin||120)-(b.distMin||120));
+  const active=all.filter(p=>{
+    if(p.distMin && !inDistRange(p.distMin)) return false;
+    if(catVal==='실내' && getPopupPlaceType(p)!=='실내') return false;
+    if(catVal==='실외' && getPopupPlaceType(p)!=='실외') return false;
+    return true;
+  }).sort((a,b)=>(a.distMin||120)-(b.distMin||120));
   document.getElementById('popupBadge').textContent=active.length;
   const el=document.getElementById('popupList');
   if(!active.length){

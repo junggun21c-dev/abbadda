@@ -1221,7 +1221,7 @@ function renderEvents(){
     <div class="event-card" onclick="openEventDetail(${e.id})">
       <div class="event-thumb" style="background:${e.bg}">${e.emoji}</div>
       <div class="event-body">
-        <div class="event-name">${e.name}</div>
+        <div class="event-name">${e.name}${e.url?`<a href="${e.url}" target="_blank" onclick="event.stopPropagation()" style="margin-left:4px;color:#FF6B35;font-size:11px;text-decoration:none">↗</a>`:''}</div>
         <div class="event-date">${e.date}</div>
         <div class="event-loc">📍 ${e.loc}</div>
       </div>
@@ -1292,7 +1292,7 @@ function openEventDetail(id){
   ${unverifiedBadge}
   <div style="font-size:48px;text-align:center;padding:1rem 0">${e.emoji}</div>
   <div style="font-size:13px;color:#666;line-height:1.8;margin-bottom:1rem">${descText}</div>
-  ${e.url ? `<a class="go-btn" href="${e.url}" target="_blank" style="margin-bottom:10px;text-decoration:none">🔗 공식 웹사이트 바로가기 ↗</a>` : ''}
+  <a class="go-btn" href="${e.url || `https://search.naver.com/search.naver?query=${encodeURIComponent(e.name)}`}" target="_blank" style="margin-bottom:10px;text-decoration:none;display:block;text-align:center">🔗 ${e.url ? '공식 웹사이트 바로가기 ↗' : '네이버에서 검색하기 ↗'}</a>
   <button class="efc-btn" style="width:100%;margin:8px 0 0" onclick="buildCourseWithEvent(${e.id})">➕ 이 행사 넣어서 코스 짜기</button>`;
   document.getElementById('modalContent').innerHTML=html;
   document.getElementById('modal').classList.add('open');

@@ -47,13 +47,18 @@ export default async function handler(req, res) {
     return res.status(200).json({ items: [], total: 0, error: e.message });
   }
 
-  // 진행중 → 이번주 시작 → 예정 순으로 정렬
+  // 진행중 축제 → 진행중 기타 → 예정 축제 → 예정 기타 순으로 정렬
+  const todayCompact = todayStr.replace(/-/g, '');
   allItems.sort((a, b) => {
     const aStart = a.eventstartdate, aEnd = a.eventenddate;
     const bStart = b.eventstartdate, bEnd = b.eventenddate;
-    const aOngoing = aStart <= todayStr && aEnd >= todayStr ? 0 : 1;
-    const bOngoing = bStart <= todayStr && bEnd >= todayStr ? 0 : 1;
+    const aOngoing = aStart <= todayCompact && aEnd >= todayCompact ? 0 : 1;
+    const bOngoing = bStart <= todayCompact && bEnd >= todayCompact ? 0 : 1;
+    const aFestival = (a.codename || '').includes('축제') ? 0 : 1;
+    const bFestival = (b.codename || '').includes('축제') ? 0 : 1;
+    // 진행중 여부 우선, 그 안에서 축제 우선
     if (aOngoing !== bOngoing) return aOngoing - bOngoing;
+    if (aFestival !== bFestival) return aFestival - bFestival;
     return aStart < bStart ? -1 : aStart > bStart ? 1 : 0;
   });
 

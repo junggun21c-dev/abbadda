@@ -1,0 +1,10 @@
+{
+  "functions": {
+    "api/popups.js": {
+      "maxDuration": 60
+    },
+    "api/events.js": {
+      "maxDuration": 30
+    }
+  }
+}

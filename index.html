@@ -32,7 +32,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:#F5F3EF;min-height:100vh;d
 .today-text strong{color:#222;font-weight:700;font-size:14px;display:block;margin-bottom:2px;}
 .today-text span{font-size:12px;color:#888;line-height:1.5;}
 .dist-tabs{display:flex;gap:6px;margin-bottom:0.9rem;}
-.dist-tab{flex:1;padding:8px 4px;border:1px solid #E8E4DC;border-radius:10px;font-size:12px;text-align:center;cursor:pointer;color:#888;background:white;transition:all 0.15s;font-family:'Noto Sans KR',sans-serif;}
+.dist-tab{flex:1;padding:6px 2px;border:1px solid #E8E4DC;border-radius:10px;font-size:10px;line-height:1.3;text-align:center;cursor:pointer;color:#888;background:white;transition:all 0.15s;font-family:'Noto Sans KR',sans-serif;word-break:keep-all;}
 .dist-tab.active{background:#FF6B35;color:white;border-color:#FF6B35;font-weight:700;}
 .section-title{font-size:15px;font-weight:700;color:#222;margin-bottom:0.75rem;display:flex;align-items:center;justify-content:space-between;}
 .badge{background:#FF6B35;color:white;font-size:10px;padding:2px 8px;border-radius:10px;font-weight:400;margin-left:6px;}
@@ -312,10 +312,11 @@ body{font-family:'Noto Sans KR',sans-serif;background:#F5F3EF;min-height:100vh;d
       </div>
     </div>
     <div class="dist-tabs">
-      <div class="dist-tab active" onclick="setDist(this,9999)">전체</div>
-      <div class="dist-tab" onclick="setDist(this,30)">30분 이내</div>
-      <div class="dist-tab" onclick="setDist(this,60)">1시간 이내</div>
-      <div class="dist-tab" onclick="setDist(this,120)">2시간 이내</div>
+      <div class="dist-tab active" onclick="setDist(this,0,9999)">전체</div>
+      <div class="dist-tab" onclick="setDist(this,0,30)">30분 이내</div>
+      <div class="dist-tab" onclick="setDist(this,30,60)">30분~1시간</div>
+      <div class="dist-tab" onclick="setDist(this,60,90)">약 1~1.5시간</div>
+      <div class="dist-tab" onclick="setDist(this,90,120)">약 1.5~2시간</div>
     </div>
     <div class="section-title">이번 주 행사 <span class="badge" id="eventBadge">LIVE</span></div>
     <div class="event-scroll" id="eventList"></div>
@@ -881,59 +882,94 @@ function getAreaCodesFromAddr(addr) {
 
 async function loadPopupsFromKakao() {
   if(popupLoaded) return;
+  try {
+    const resp = await fetch('/api/popups');
+    if(!resp.ok) throw new Error('API 오류');
+    const data = await resp.json();
+    const items = data.items || [];
+
+    const today = new Date(); today.setHours(0,0,0,0);
+    const POPUP_EMOJIS = ['🎪','🛍️','✨','🎨','🎭','🎠','🎡','🏪','🌟','🎀'];
+
+    POPUPS_DB = items.map((item, i) => {
+      const pLat = item.lat || null;
+      const pLng = item.lng || null;
+      const dist = (userLat && userLng && pLat && pLng)
+        ? kmToDriveMin(haversineKm(userLat, userLng, pLat, pLng))
+        : 60;
+
+      // 날짜 포맷
+      const start = item.startDate ? item.startDate.slice(5).replace('-','/') : '';
+      const end   = item.endDate   ? item.endDate.slice(5).replace('-','/')   : '';
+      const dateStr = start && end ? `${start} ~ ${end}` : start || '기간 미정';
+
+      // D-day 계산
+      let dDay = null;
+      if(item.startDate) {
+        const s = new Date(item.startDate);
+        const diff = Math.ceil((s - today) / 86400000);
+        dDay = diff > 0 ? diff : 0;
+      }
+
+      return {
+        id: 200 + i,
+        emoji: POPUP_EMOJIS[i % POPUP_EMOJIS.length],
+        bg: EVENT_BGS[i % EVENT_BGS.length],
+        name: item.title,
+        date: dateStr,
+        loc: item.address || '',
+        region: (item.address || '').split(' ').slice(0, 2).join(' '),
+        distMin: dist,
+        lat: pLat,
+        lng: pLng,
+        url: item.url || '',
+        image: item.image || '',
+        desc: item.address || '',
+        verified: true,
+        startDateRaw: item.startDate || null,
+        endDateRaw: item.endDate || null,
+        d: dDay
+      };
+    });
+
+    popupLoaded = true;
+    recalcDistances(); // 사용자 위치 기반 거리 재계산
+    renderPopups();
+    if(POPUPS_DB.length > 0) {
+      showToast(`🎪 팝업스토어 ${POPUPS_DB.length}개 정보를 불러왔어요!`);
+    }
+  } catch(e) {
+    console.error('팝업 API 오류:', e);
+    // Fallback: 카카오 장소 검색
+    popupLoaded = false;
+    await loadPopupsFromKakaoFallback();
+  }
+}
+
+async function loadPopupsFromKakaoFallback() {
+  if(popupLoaded) return;
   const sdk = await loadKakaoSDK();
-  if(!sdk) {
-    popupLoaded = true;
-    renderPopups();
-    return;
-  }
-  if(!userLat || !userLng) {
-    popupLoaded = true;
-    renderPopups();
-    return;
-  }
+  if(!sdk || !userLat || !userLng) { popupLoaded = true; renderPopups(); return; }
   const ps = new kakao.maps.services.Places();
-  let results = [];
-  let done = 0;
+  let results = [], done = 0;
   const onResult = (data, status) => {
     if(status === kakao.maps.services.Status.OK) results = results.concat(data);
     done++;
     if(done < 2) return;
-    // 중복 제거 (place_url 기준)
     const seen = new Set();
-    results = results.filter(p => {
-      const key = p.id || p.place_url;
-      if(seen.has(key)) return false;
-      seen.add(key); return true;
-    });
+    results = results.filter(p => { const k = p.id||p.place_url; if(seen.has(k)) return false; seen.add(k); return true; });
     POPUPS_DB = results.map((place, i) => {
-      const pLat = parseFloat(place.y);
-      const pLng = parseFloat(place.x);
-      const dist = (userLat && userLng) ? kmToDriveMin(haversineKm(userLat, userLng, pLat, pLng)) : 60;
-      return {
-        id: 200 + i,
-        emoji: ['🎪','🛍️','✨','🎨','🎭','🎠','🎡'][i % 7],
-        bg: EVENT_BGS[i % EVENT_BGS.length],
-        name: place.place_name,
-        date: '🔖 상시운영',
-        loc: place.road_address_name || place.address_name,
-        region: (place.address_name || '').split(' ').slice(0,2).join(' '),
-        distMin: dist,
-        lat: pLat,
-        lng: pLng,
-        url: place.place_url,
-        desc: (place.category_name || '') + (place.road_address_name ? ' · ' + place.road_address_name : ''),
-        verified: true,
-        endDateRaw: null
-      };
+      const pLat = parseFloat(place.y), pLng = parseFloat(place.x);
+      const dist = (userLat&&userLng) ? kmToDriveMin(haversineKm(userLat,userLng,pLat,pLng)) : 60;
+      return { id:200+i, emoji:['🎪','🛍️','✨','🎨','🎭','🎠','🎡'][i%7], bg:EVENT_BGS[i%EVENT_BGS.length],
+        name:place.place_name, date:'🔖 상시운영', loc:place.road_address_name||place.address_name,
+        region:(place.address_name||'').split(' ').slice(0,2).join(' '), distMin:dist,
+        lat:pLat, lng:pLng, url:place.place_url, desc:(place.category_name||''),
+        verified:true, endDateRaw:null };
     });
-    popupLoaded = true;
-    renderPopups();
-    if(POPUPS_DB.length > 0) {
-      document.getElementById('popupBadge').textContent = POPUPS_DB.length;
-    }
+    popupLoaded = true; renderPopups();
   };
-  const opts = { location: new kakao.maps.LatLng(userLat, userLng), radius: 20000, sort: kakao.maps.services.SortBy.DISTANCE };
+  const opts = { location: new kakao.maps.LatLng(userLat,userLng), radius:20000, sort:kakao.maps.services.SortBy.DISTANCE };
   ps.keywordSearch('팝업스토어', onResult, opts);
   ps.keywordSearch('팝업', onResult, opts);
 }
@@ -990,7 +1026,8 @@ async function loadEventsFromTourAPI() {
           lat: evtLat, lng: evtLng,
           startDateRaw: startDate.length===8 ? `${startDate.slice(0,4)}-${startDate.slice(4,6)}-${startDate.slice(6,8)}` : null,
           endDateRaw:   endDate.length===8   ? `${endDate.slice(0,4)}-${endDate.slice(4,6)}-${endDate.slice(6,8)}` : null,
-          verified: true, contentId: item.contentid
+          verified: true, contentId: item.contentid,
+          codename: item.codename || ''
         };
       }).filter(Boolean);
     } else {
@@ -998,7 +1035,7 @@ async function loadEventsFromTourAPI() {
     }
     tourApiLoaded = true;
     renderEvents();
-    document.getElementById('eventBadge').textContent = getEventsByDist(distMax).length;
+    document.getElementById('eventBadge').textContent = getEventsByDist().length;
     const regionLabel = (homeAddr && homeAddr !== '출발지 미설정') ? homeAddr.split(' ')[0] : '내 지역';
     if(EVENTS_DB.length > 0) showToast(`🎉 ${regionLabel} 인근 행사 ${EVENTS_DB.length}개 불러왔어요!`);
   } catch(e) {
@@ -1031,7 +1068,13 @@ function isEventActive(e) {
 /* ─── 미검증 행사 여부 ─── */
 function isVerified(e) { return e.verified !== false; }
 
-function getEventsByDist(maxMin){ return EVENTS_DB.filter(e=>e.distMin<=maxMin && isEventActive(e)); }
+const EVENT_BLACKLIST=['아카데미','예술학교','학원','강좌','특강','수강','교육원','문화원 강'];
+function getEventsByDist(){ return EVENTS_DB.filter(e=>{
+  if(!isEventActive(e)) return false;
+  if(!inDistRange(e.distMin)) return false;
+  if(EVENT_BLACKLIST.some(kw=>(e.name||'').includes(kw))) return false;
+  return true;
+}); }
 
 /* ─── 상태 ─── */
 const weatherStates=[
@@ -1041,7 +1084,7 @@ const weatherStates=[
 ];
 const ages=['5살','7살','9살','11살','13살'];
 const members=['2인(부부)','3인 가족','4인 가족','5인 이상'];
-let wIdx=0,aIdx=3,mIdx=1,catVal='전체',distMax=9999;
+let wIdx=0,aIdx=3,mIdx=1,catVal='전체',distMin=0,distMax=9999;
 let favs=new Set();
 let currentCourseIdx=-1,pendingDeleteStepIdx=-1;
 let homeAddr = localStorage.getItem('homeAddr') || '출발지 미설정';
@@ -1060,10 +1103,17 @@ function initHomeLabel() {
 function fmtMin(m){return m>=60?`${Math.floor(m/60)}시간${m%60?` ${m%60}분`:''}` :`${m}분`;}
 function shuffle(arr){return [...arr].sort(()=>Math.random()-0.5);}
 
-function setDist(el,max){
+function setDist(el,min,max){
   document.querySelectorAll('.dist-tab').forEach(t=>t.classList.remove('active'));
-  el.classList.add('active'); distMax=max; shownCourseIds=new Set();
+  el.classList.add('active'); distMin=min; distMax=max; shownCourseIds=new Set();
   renderEvents(); renderPopups(); renderCourses(true);
+}
+
+/* 현재 선택된 거리 탭 범위에 해당하는지 확인 */
+function inDistRange(d){
+  if(distMax===9999) return true;          // 전체
+  if(distMin===0) return d<=distMax;       // 30분 이내
+  return d>distMin && d<=distMax;          // 나머지 범위
 }
 
 function cycleWeather(){
@@ -1146,8 +1196,14 @@ function setFilter(el,val){
 }
 
 function renderEvents(){
-  const all=getEventsByDist(distMax)
-    .sort((a,b)=>(a.d??999)-(b.d??999)||a.distMin-b.distMin);
+  const all=getEventsByDist()
+    .sort((a,b)=>{
+      const aOngoing=(a.d??999)===0?0:1, bOngoing=(b.d??999)===0?0:1;
+      const aFest=(a.codename||'').includes('축제')?0:1, bFest=(b.codename||'').includes('축제')?0:1;
+      if(aOngoing!==bOngoing) return aOngoing-bOngoing;
+      if(aFest!==bFest) return aFest-bFest;
+      return (a.d??999)-(b.d??999)||a.distMin-b.distMin;
+    });
   document.getElementById('eventBadge').textContent=`${all.length}`;
   const el=document.getElementById('eventList');
   if(!all.length){
@@ -1176,7 +1232,7 @@ function openEventAll(){
   const all=EVENTS_DB;
   let html=`<div class="sheet-title">📅 이번 주 전체 행사</div><div style="font-size:12px;color:#aaa;margin-bottom:1rem">총 ${all.length}개 행사</div>`;
   all.forEach(e=>{
-    const inRange=e.distMin<=distMax;
+    const inRange=inDistRange(e.distMin);
     const nameHtml=e.url
       ?`<a href="${e.url}" target="_blank" style="color:#222;text-decoration:none;font-weight:700">${e.name} <span style="font-size:11px;color:#FF6B35">↗</span></a> ${inRange?'<span style="background:#EAFAF0;color:#187A3D;font-size:9px;padding:1px 6px;border-radius:6px;font-weight:700">범위 내</span>':''}`
       :`${e.name} ${inRange?'<span style="background:#EAFAF0;color:#187A3D;font-size:9px;padding:1px 6px;border-radius:6px;font-weight:700">범위 내</span>':''}`;
@@ -1267,7 +1323,7 @@ function getFilteredPool(){
   // 노키즈존 포함 코스 제외 (timeline 내 noKids:true 장소가 하나라도 있으면 제외)
   let pool=COURSES_DB.filter(c=>{
     if(c.timeline && c.timeline.some(s=>s.noKids)) return false;
-    return c.driveMin<=distMax && c.weather.includes(w);
+    return inDistRange(c.driveMin) && c.weather.includes(w);
   });
   if(catVal==='실외') pool=pool.filter(c=>c.cat==='실외');
   else if(catVal==='실내') pool=pool.filter(c=>c.cat==='실내');
@@ -1278,11 +1334,10 @@ function getFilteredPool(){
   if(ages.length>0){
     pool=pool.slice().sort((a,b)=>{
       const sa=calcAgeScore(a,ages), sb=calcAgeScore(b,ages);
-      if(sb!==sa) return sb-sa; // 점수 높은 순
-      if(distMax===9999) return a.driveMin-b.driveMin; // 동점 시 거리순
-      return 0;
+      if(sb!==sa) return sb-sa;
+      return a.driveMin-b.driveMin; // 동점 시 거리순
     });
-  } else if(distMax===9999){
+  } else {
     pool=pool.slice().sort((a,b)=>a.driveMin-b.driveMin);
   }
   return pool;
@@ -1299,8 +1354,14 @@ function renderCourses(animate){
   document.getElementById('courseCount').textContent=picked.length;
   const el=document.getElementById('courseList');
   if(!picked.length){
-    const hint = distMax!==9999 ? `<br><button onclick="document.querySelector('.dist-tab').click()" style="margin-top:8px;padding:6px 16px;border:1px solid #FF6B35;border-radius:20px;background:white;color:#FF6B35;font-size:12px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">전체 거리로 보기</button>` : '';
-    el.innerHTML=`<div class="empty">조건에 맞는 코스가 없어요 😅<br>필터나 날씨를 바꿔보세요!${hint}</div>`;
+    const isNear = distMax!==9999 && distMax<=30;
+    const hint = distMax!==9999
+      ? `<br><button onclick="document.querySelector('.dist-tab').click()" style="margin-top:8px;padding:6px 16px;border:1px solid #FF6B35;border-radius:20px;background:white;color:#FF6B35;font-size:12px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">전체 거리로 보기</button>`
+      : '';
+    const msg = isNear
+      ? `30분 거리 맞춤 코스가 없어요 😅<br><span style="font-size:11px;color:#bbb">주변 공원·맛집을 지도에서 검색해보세요</span>`
+      : `조건에 맞는 코스가 없어요 😅<br>필터나 날씨를 바꿔보세요!`;
+    el.innerHTML=`<div class="empty">${msg}${hint}</div>`;
     return;
   }
   el.innerHTML=picked.map((c,i)=>courseCardHTML(c,i,animate)).join('');
@@ -1999,7 +2060,8 @@ function renderPopups(){
     if(!p.endDateRaw) return true;
     return new Date(p.endDateRaw)>=today;
   });
-  const active=all.filter(p=>!p.distMin||p.distMin<=distMax);
+  const active=all.filter(p=>!p.distMin||inDistRange(p.distMin))
+    .sort((a,b)=>(a.distMin||120)-(b.distMin||120));
   document.getElementById('popupBadge').textContent=active.length;
   const el=document.getElementById('popupList');
   if(!active.length){
@@ -2010,15 +2072,18 @@ function renderPopups(){
     }
     return;
   }
-  el.innerHTML=active.map(p=>`
+  el.innerHTML=active.map(p=>{
+    const dBadge = (p.d!=null && p.d<=7) ? `<span class="d-badge">D-${p.d||'day'}</span>` : '';
+    return `
     <div class="event-card" onclick="openPopupDetail(${p.id})">
       <div class="event-thumb" style="background:${p.bg}"><span style="font-size:34px">${p.emoji}</span></div>
       <div class="event-body">
         <div class="event-name">${p.name}</div>
-        <div class="event-date">${p.date}</div>
-        <div class="event-loc">${p.region}<span class="popup-region-badge">팝업</span></div>
+        <div class="event-date">${p.date}${dBadge}</div>
+        <div class="event-loc">📍 ${p.loc||p.region}<span class="popup-region-badge">팝업</span></div>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 function openPopupDetail(id){
@@ -2043,7 +2108,7 @@ function openPopupAll(){
   const active=POPUPS_DB.filter(p=>!p.endDateRaw||new Date(p.endDateRaw)>=today);
   let html=`<div class="sheet-title">🎪 이번 주 전체 팝업</div><div style="font-size:12px;color:#aaa;margin-bottom:1rem">총 ${active.length}개 팝업</div>`;
   active.forEach(p=>{
-    const inRange=!p.distMin||p.distMin<=distMax;
+    const inRange=!p.distMin||inDistRange(p.distMin);
     const nameHtml=p.url
       ?`<a href="${p.url}" target="_blank" style="color:#222;text-decoration:none;font-weight:700">${p.name} <span style="font-size:11px;color:#FF6B35">↗</span></a> ${inRange?'<span style="background:#EAFAF0;color:#187A3D;font-size:9px;padding:1px 6px;border-radius:6px;font-weight:700">범위 내</span>':''}`
       :`${p.name} ${inRange?'<span style="background:#EAFAF0;color:#187A3D;font-size:9px;padding:1px 6px;border-radius:6px;font-weight:700">범위 내</span>':''}`;

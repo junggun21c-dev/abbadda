@@ -1365,9 +1365,11 @@ async function buildCourseWithEvent(eventId) {
 function getFilteredPool(){
   const w=weatherStates[wIdx].label;
   // 노키즈존 포함 코스 제외 (timeline 내 noKids:true 장소가 하나라도 있으면 제외)
+  // 실내 필터 선택 시 날씨 무관 (실내는 맑든 비오든 갈 수 있음)
+  const weatherOk = (c) => catVal === '실내' ? true : c.weather.includes(w);
   let pool=COURSES_DB.filter(c=>{
     if(c.timeline && c.timeline.some(s=>s.noKids)) return false;
-    return inDistRange(c.driveMin) && c.weather.includes(w);
+    return inDistRange(c.driveMin) && weatherOk(c);
   });
   if(catVal==='실외') pool=pool.filter(c=>c.cat==='실외');
   else if(catVal==='실내') pool=pool.filter(c=>c.cat==='실내');
@@ -2429,6 +2431,7 @@ initHomeLabel();
 loadEventsFromTourAPI();
 initLocation();
 setTimeout(() => { loadKakaoSDK(); checkUrlCourse(); }, 1500);
+setTimeout(() => { loadDynamicCourses(); }, 4000); // 위치·카카오 SDK 준비 후 동적 코스 로드
 </script>
 </body>
 </html>

@@ -89,9 +89,27 @@ async function fetchPopupPage(id, todayStr, futureLimit) {
     if (endDate < todayStr) return null;
     if (startDate > futureLimit) return null;
 
-    // 주소 (한국어 주소 패턴)
-    const addrMatch = combined.match(/(?:서울|경기|인천|부산|대구|대전|광주|울산|제주)[가-힣0-9\s\-·,()]+/);
-    const address = addrMatch ? addrMatch[0].trim().replace(/\s+/g, ' ').slice(0, 50) : '';
+    // 주소 추출 (다단계 시도)
+    let address = '';
+    // 1차: 광역시·도 접두사 기준 (전국)
+    const regionRx = /(?:서울|부산|대구|인천|광주|대전|울산|세종|경기|강원|충북|충남|전북|전남|경북|경남|제주)[가-힣0-9\s\-·,()]{4,60}/;
+    const addrM1 = combined.match(regionRx);
+    if (addrM1) address = addrM1[0].trim().replace(/\s+/g, ' ');
+    // 2차: 도로명주소 패턴 (XX로/XX길 + 번지)
+    if (!address) {
+      const roadRx = /[가-힣]{2,6}(?:로|길)\s*\d+(?:[가-힣\s\-\d()]*(?:층|호|번지)?){0,3}/;
+      const addrM2 = combined.match(roadRx);
+      if (addrM2) address = addrM2[0].trim().replace(/\s+/g, ' ');
+    }
+    // 3차: og:description 메타태그에서 지역명 추출
+    if (!address) {
+      const ogMatch = html.match(/property="og:description"\s+content="([^"]{10,120})"/);
+      if (ogMatch) {
+        const m = ogMatch[1].match(regionRx);
+        if (m) address = m[0].trim().replace(/\s+/g, ' ');
+      }
+    }
+    address = address.slice(0, 60);
 
     // 좌표 (Naver Maps용으로 HTML에 직접 포함됨)
     const latMatch = html.match(/(?:37|36|35|34|38|33)\.[0-9]{5,}/);

@@ -2096,7 +2096,7 @@ function renderPopups(){
       <div class="event-body">
         <div class="event-name">${p.name}</div>
         <div class="event-date">${p.date}</div>
-        <div class="event-loc">📍 ${p.loc||p.region}</div>
+        <div class="event-loc">${p.loc||p.region ? `📍 ${p.loc||p.region}` : '<span style="color:#bbb">📍 위치 확인 중</span>'}</div>
       </div>
     </div>`).join('');
 }
@@ -2108,7 +2108,7 @@ function openPopupDetail(id){
   const titleHtml=`<a class="event-title-link" href="${linkHref}" target="_blank">${p.emoji} ${p.name} <span class="link-arrow">↗</span></a>`;
   document.getElementById('modalContent').innerHTML=`
     ${titleHtml}
-    <div class="sheet-sub">📍 ${p.loc}</div>
+    ${p.loc ? `<div class="sheet-sub">📍 ${p.loc}</div>` : '<div class="sheet-sub" style="color:#bbb">📍 위치 정보 없음</div>'}
     <div class="sheet-sub" style="color:#FF6B35;font-weight:600">📅 ${p.date}</div>
     <div style="background:#F8F4EF;border-radius:14px;padding:12px 14px;margin:0.75rem 0;font-size:13px;color:#444;line-height:1.7">${p.desc}</div>
     <button class="efc-btn" style="width:100%;margin:8px 0 0" onclick="buildCourseWithPopup(${p.id})">➕ 이 팝업 넣어서 코스 짜기</button>

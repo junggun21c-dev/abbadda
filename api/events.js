@@ -31,7 +31,7 @@ export default async function handler(req, res) {
         const startDate = (row.STRTDATE || '').slice(0, 10);
         if (!endDate || endDate < todayStr) continue;
         const key = 'seoul_' + row.TITLE + startDate;
-        if (seen.has(key)) return;
+        if (seen.has(key)) continue;
         seen.add(key);
         allItems.push({
           title: row.TITLE,
@@ -99,7 +99,6 @@ export default async function handler(req, res) {
   }
 
   // 진행중 축제 → 진행중 기타 → 예정 축제 → 예정 기타 순으로 정렬
-  const todayCompact = todayStr.replace(/-/g, '');
   allItems.sort((a, b) => {
     const aStart = a.eventstartdate, aEnd = a.eventenddate;
     const bStart = b.eventstartdate, bEnd = b.eventenddate;

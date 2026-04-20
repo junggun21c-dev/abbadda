@@ -76,7 +76,7 @@ export default async function handler(req, res) {
           mapx: item.mapx || null,
           contentid: item.contentid || key,
           firstimage: item.firstimage || '',
-          url: '',
+          url: item.contentid ? `https://korean.visitkorea.or.kr/detail/ms_detail.do?cotid=${item.contentid}` : '',
           usefee: '',
           usetimefestival: '',
           codename: '축제', // TourAPI searchFestival2는 모두 축제

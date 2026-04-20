@@ -21,7 +21,7 @@ export default async function handler(req, res) {
 
   for (const code of codes) {
     try {
-      const url = `https://apis.data.go.kr/B551011/KorService2/searchFestival2?serviceKey=${KEY}&numOfRows=100&pageNo=1&MobileOS=ETC&MobileApp=%EC%95%84%EB%B9%A0%EB%94%B0&_type=json&listYN=Y&arrange=A&eventStartDate=${startFrom}&areaCode=${code}`;
+      const url = `https://apis.data.go.kr/B551011/KorService2/searchFestival2?serviceKey=${KEY}&numOfRows=100&pageNo=1&MobileOS=ETC&MobileApp=%EC%95%84%EB%B9%A0%EB%94%B0&_type=json&arrange=A&eventStartDate=${startFrom}&areaCode=${code}`;
       const resp = await fetch(url);
       if (!resp.ok) { debugLog.push(`[${code}] HTTP ${resp.status}`); continue; }
 
@@ -30,12 +30,18 @@ export default async function handler(req, res) {
       try { data = JSON.parse(text); }
       catch(e) { debugLog.push(`[${code}] JSON parse fail: ${text.slice(0,150)}`); continue; }
 
+      // 에러 응답: {resultCode, resultMsg} 플랫 구조
+      if (data.resultCode && data.resultCode !== '0000') {
+        debugLog.push(`[${code}] error: ${data.resultCode} ${data.resultMsg}`);
+        continue;
+      }
+
       const header = data?.response?.header;
       const body = data?.response?.body;
       const totalCount = body?.totalCount ?? '?';
       const resultCode = header?.resultCode;
       if (!firstRaw) firstRaw = text.slice(0, 500);
-      debugLog.push(`[${code}] rc=${resultCode} total=${totalCount} keys=${Object.keys(data||{}).join(',')}`);
+      debugLog.push(`[${code}] rc=${resultCode} total=${totalCount}`);
 
       if (resultCode && resultCode !== '0000') continue;
 

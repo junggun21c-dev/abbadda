@@ -1279,20 +1279,18 @@ function openEventDetail(id){
   const e=EVENTS_DB.find(x=>x.id===id);
   if(!e) return;
   const verified = isVerified(e);
-  const titleHtml = e.url
-    ? `<a class="event-title-link" href="${e.url}" target="_blank">${e.emoji} ${e.name} <span class="link-arrow">↗</span></a>`
-    : `<div class="sheet-title">${e.emoji} ${e.name}</div>`;
+  const linkHref = e.url || `https://search.naver.com/search.naver?query=${encodeURIComponent(e.name)}`;
+  const titleHtml = `<a class="event-title-link" href="${linkHref}" target="_blank">${e.emoji} ${e.name} <span class="link-arrow">↗</span></a>`;
   const descText = e.desc || '가족과 함께 즐길 수 있는 행사예요.';
   const unverifiedBadge = !verified
     ? `<div class="unverified-badge">⚠️ 날짜·정보는 공식 사이트에서 재확인 권장</div>`
     : '';
   let html=`
-  ${e.url ? titleHtml : `<div class="sheet-title">${e.emoji} ${e.name}</div>`}
+  ${titleHtml}
   <div class="sheet-sub">📅 ${e.date} · 📍 ${e.loc}</div>
   ${unverifiedBadge}
   <div style="font-size:48px;text-align:center;padding:1rem 0">${e.emoji}</div>
   <div style="font-size:13px;color:#666;line-height:1.8;margin-bottom:1rem">${descText}</div>
-  <a class="go-btn" href="${e.url || `https://search.naver.com/search.naver?query=${encodeURIComponent(e.name)}`}" target="_blank" style="margin-bottom:10px;text-decoration:none;display:block;text-align:center">🔗 ${e.url ? '공식 웹사이트 바로가기 ↗' : '네이버에서 검색하기 ↗'}</a>
   <button class="efc-btn" style="width:100%;margin:8px 0 0" onclick="buildCourseWithEvent(${e.id})">➕ 이 행사 넣어서 코스 짜기</button>`;
   document.getElementById('modalContent').innerHTML=html;
   document.getElementById('modal').classList.add('open');
@@ -2105,15 +2103,13 @@ function renderPopups(){
 function openPopupDetail(id){
   const p=POPUPS_DB.find(x=>x.id===id);
   if(!p) return;
-  const titleHtml=p.url
-    ?`<a class="event-title-link" href="${p.url}" target="_blank">${p.emoji} ${p.name} <span class="link-arrow">↗</span></a>`
-    :`<div class="sheet-title">${p.emoji} ${p.name}</div>`;
+  const linkHref=p.url||`https://search.naver.com/search.naver?query=${encodeURIComponent(p.name)}`;
+  const titleHtml=`<a class="event-title-link" href="${linkHref}" target="_blank">${p.emoji} ${p.name} <span class="link-arrow">↗</span></a>`;
   document.getElementById('modalContent').innerHTML=`
     ${titleHtml}
     <div class="sheet-sub">📍 ${p.loc}</div>
     <div class="sheet-sub" style="color:#FF6B35;font-weight:600">📅 ${p.date}</div>
     <div style="background:#F8F4EF;border-radius:14px;padding:12px 14px;margin:0.75rem 0;font-size:13px;color:#444;line-height:1.7">${p.desc}</div>
-    ${p.url?`<a class="go-btn" href="${p.url}" target="_blank" style="margin-bottom:10px;text-decoration:none">🔗 공식 웹사이트 바로가기 ↗</a>`:''}
     <button class="efc-btn" style="width:100%;margin:8px 0 0" onclick="buildCourseWithPopup(${p.id})">➕ 이 팝업 넣어서 코스 짜기</button>
   `;
   document.getElementById('modal').classList.add('open');

@@ -1146,10 +1146,11 @@ function setFilter(el,val){
 }
 
 function renderEvents(){
-  const list=getEventsByDist(distMax);
-  document.getElementById('eventBadge').textContent=`${list.length}`;
+  const all=getEventsByDist(distMax)
+    .sort((a,b)=>(a.d??999)-(b.d??999)||a.distMin-b.distMin);
+  document.getElementById('eventBadge').textContent=`${all.length}`;
   const el=document.getElementById('eventList');
-  if(!list.length){
+  if(!all.length){
     if(!tourApiLoaded){
       el.innerHTML='<div class="loading-msg"><div class="loading-dots"><span></span><span></span><span></span></div>정보를 불러오고 있습니다.</div>';
     } else {
@@ -1157,6 +1158,9 @@ function renderEvents(){
     }
     return;
   }
+  // 메인 스크롤: 2주 이내 행사 우선, 없으면 전체에서 상위 8개
+  const soon=all.filter(e=>(e.d??999)<=14);
+  const list=(soon.length>0?soon:all).slice(0,8);
   el.innerHTML=list.map((e,i)=>`
     <div class="event-card" onclick="openEventDetail(${e.id})">
       <div class="event-thumb" style="background:${e.bg}">${e.emoji}</div>

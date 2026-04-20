@@ -1292,7 +1292,8 @@ function renderCourses(animate){
   document.getElementById('courseCount').textContent=picked.length;
   const el=document.getElementById('courseList');
   if(!picked.length){
-    el.innerHTML='<div class="empty">조건에 맞는 코스가 없어요 😅<br>필터나 날씨를 바꿔보세요!</div>';
+    const hint = distMax!==9999 ? `<br><button onclick="document.querySelector('.dist-tab').click()" style="margin-top:8px;padding:6px 16px;border:1px solid #FF6B35;border-radius:20px;background:white;color:#FF6B35;font-size:12px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">전체 거리로 보기</button>` : '';
+    el.innerHTML=`<div class="empty">조건에 맞는 코스가 없어요 😅<br>필터나 날씨를 바꿔보세요!${hint}</div>`;
     return;
   }
   el.innerHTML=picked.map((c,i)=>courseCardHTML(c,i,animate)).join('');

@@ -3,45 +3,41 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   const { areaCodes } = req.query;
-  const KEY = encodeURIComponent('7cd0819411acef067d0cc1ab73350bb7105cde8c2fd3de620bec99e518953f95');
+  const KEY = '7cd0819411acef067d0cc1ab73350bb7105cde8c2fd3de620bec99e518953f95';
 
   const now = new Date();
   const fmt = (d) => `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
   const todayStr = fmt(now);
 
-  // 진행 중 행사 포착: 90일 전 시작 ~ 60일 후 종료
-  const past90 = new Date(now); past90.setDate(past90.getDate() - 90);
-  const future60 = new Date(now); future60.setDate(future60.getDate() + 60);
-  const startFrom = fmt(past90);
-  const endUntil = fmt(future60);
+  // 6개월 전부터 시작한 행사 포함 (eventEndDate 제거 - 필터 너무 좁아짐)
+  const past180 = new Date(now); past180.setDate(past180.getDate() - 180);
+  const startFrom = fmt(past180);
 
   const codes = (areaCodes || '1,31').split(',').map(s => s.trim()).filter(Boolean).slice(0, 6);
   const seen = new Set();
   const allItems = [];
-  const errors = [];
+  const debugLog = [];
 
   for (const code of codes) {
     try {
-      const url = `https://apis.data.go.kr/B551011/KorService2/searchFestival2?serviceKey=${KEY}&numOfRows=100&pageNo=1&MobileOS=ETC&MobileApp=%EC%95%84%EB%B9%A0%EB%94%B0&_type=json&listYN=Y&arrange=A&eventStartDate=${startFrom}&eventEndDate=${endUntil}&areaCode=${code}`;
+      const url = `https://apis.data.go.kr/B551011/KorService2/searchFestival2?serviceKey=${KEY}&numOfRows=100&pageNo=1&MobileOS=ETC&MobileApp=%EC%95%84%EB%B9%A0%EB%94%B0&_type=json&listYN=Y&arrange=A&eventStartDate=${startFrom}&areaCode=${code}`;
       const resp = await fetch(url);
-      if (!resp.ok) { errors.push(`areaCode=${code} HTTP ${resp.status}`); continue; }
+      if (!resp.ok) { debugLog.push(`[${code}] HTTP ${resp.status}`); continue; }
 
       const text = await resp.text();
       let data;
-      try {
-        data = JSON.parse(text);
-      } catch(e) {
-        errors.push(`areaCode=${code} JSON parse fail: ${text.slice(0, 200)}`);
-        continue;
-      }
+      try { data = JSON.parse(text); }
+      catch(e) { debugLog.push(`[${code}] JSON parse fail: ${text.slice(0,150)}`); continue; }
 
-      const resultCode = data?.response?.header?.resultCode;
-      if (resultCode && resultCode !== '0000') {
-        errors.push(`areaCode=${code} API error: ${resultCode} ${data?.response?.header?.resultMsg}`);
-        continue;
-      }
+      const header = data?.response?.header;
+      const body = data?.response?.body;
+      const totalCount = body?.totalCount ?? '?';
+      const resultCode = header?.resultCode;
+      debugLog.push(`[${code}] resultCode=${resultCode} totalCount=${totalCount}`);
 
-      const items = data?.response?.body?.items?.item;
+      if (resultCode && resultCode !== '0000') continue;
+
+      const items = body?.items?.item;
       if (!items) continue;
       const arr = Array.isArray(items) ? items : [items];
       for (const item of arr) {
@@ -53,13 +49,13 @@ export default async function handler(req, res) {
         }
       }
     } catch(e) {
-      errors.push(`areaCode=${code} exception: ${e.message}`);
+      debugLog.push(`[${code}] exception: ${e.message}`);
     }
   }
 
   return res.status(200).json({
     items: allItems,
     total: allItems.length,
-    debug: { todayStr, startFrom, endUntil, errors }
+    debug: { todayStr, startFrom, log: debugLog }
   });
 }

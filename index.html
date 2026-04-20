@@ -425,6 +425,8 @@ function recalcDistances() {
     if (!p.lat || !p.lng) return;
     p.distMin = kmToDriveMin(haversineKm(userLat, userLng, p.lat, p.lng));
   });
+  // 동적 코스 위치 기반 탐색 (최초 1회)
+  if (!dynamicCoursesLoaded) setTimeout(loadDynamicCourses, 400);
 }
 
 /* ─── 날씨 상태 설정 ─── */
@@ -1455,8 +1457,13 @@ function refreshCourses(){
 
 function toggleFav(idx,el){favs.has(idx)?(favs.delete(idx),el.textContent='🤍'):(favs.add(idx),el.textContent='❤️');}
 
-function openCourse(idx){
+async function openCourse(idx){
   currentCourseIdx=idx;
+  const c=COURSES_DB[idx];
+  if(c && c.isDynamic && c.needsEnrichment){
+    showToast('주변 맛집·카페 찾는 중... 🔍');
+    await enrichDynamicCourse(c);
+  }
   renderCourseDetail();
   document.getElementById('modal').classList.add('open');
 }
@@ -2242,6 +2249,120 @@ async function buildCourseWithPopup(popupId){
   renderCourseDetail();
   document.getElementById('modal').classList.add('open');
   showToast(restaurant?`${restaurant.place_name} 등 실제 맛집을 찾았어요! 🎉`:'팝업 코스를 생성했어요! 🎪');
+}
+
+/* ─── 동적 코스 생성 (카카오 Places 기반) ─── */
+let dynamicCoursesLoaded = false;
+
+const DYNAMIC_CATEGORIES = [
+  { kw:'키즈카페',       cat:'실내', weather:['흐림','비','실내'], tags:['키즈카페','아이추천'],  emoji:'☕' },
+  { kw:'어린이박물관',   cat:'실내', weather:['흐림','비','실내'], tags:['박물관','교육','아이추천'], emoji:'🏛️' },
+  { kw:'과학관',         cat:'실내', weather:['흐림','비','실내'], tags:['과학','교육','아이추천'], emoji:'🔬' },
+  { kw:'아쿠아리움',     cat:'실내', weather:['흐림','비','실내'], tags:['자연','아이추천'],        emoji:'🐠' },
+  { kw:'식물원',         cat:'실내', weather:['흐림','비','실내'], tags:['자연','힐링'],           emoji:'🌺' },
+  { kw:'천문대',         cat:'실내', weather:['흐림','비','실내'], tags:['과학','교육'],           emoji:'🔭' },
+  { kw:'수목원',         cat:'실외', weather:['맑음','흐림'],      tags:['자연','힐링'],           emoji:'🌳' },
+  { kw:'동물원',         cat:'실외', weather:['맑음','흐림'],      tags:['자연','아이추천'],        emoji:'🦁' },
+  { kw:'놀이공원',       cat:'실외', weather:['맑음','흐림'],      tags:['놀이','아이추천'],        emoji:'🎢' },
+  { kw:'생태공원',       cat:'실외', weather:['맑음','흐림'],      tags:['자연','아이추천'],        emoji:'🌿' },
+  { kw:'테마파크',       cat:'실외', weather:['맑음','흐림'],      tags:['놀이','아이추천'],        emoji:'🎡' },
+  { kw:'자연휴양림',     cat:'실외', weather:['맑음'],             tags:['자연','힐링'],           emoji:'⛺' },
+  { kw:'물놀이장',       cat:'실외', weather:['맑음'],             tags:['물놀이','여름'],          emoji:'💦' },
+  { kw:'역사박물관',     cat:'실내', weather:['흐림','비','실내'], tags:['박물관','역사','교육'],   emoji:'🏺' },
+  { kw:'유아숲체험원',   cat:'실외', weather:['맑음','흐림'],      tags:['자연','유아추천'],        emoji:'🌲' },
+];
+
+let _dynId = 2000;
+
+async function loadDynamicCourses() {
+  if (dynamicCoursesLoaded || !userLat || !userLng) return;
+  const loaded = await loadKakaoSDK();
+  if (!loaded) return;
+  dynamicCoursesLoaded = true;
+
+  const ps = new kakao.maps.services.Places();
+  const opts = {
+    location: new kakao.maps.LatLng(userLat, userLng),
+    radius: 60000,
+    sort: kakao.maps.services.SortBy.ACCURACY
+  };
+
+  let pending = DYNAMIC_CATEGORIES.length;
+  const bgColors = typeof EVENT_BGS !== 'undefined' ? EVENT_BGS : ['#FFF0E8','#E8F4FF','#E8FFE8','#FFF8E8'];
+
+  for (const cat of DYNAMIC_CATEGORIES) {
+    ps.keywordSearch(cat.kw, (data, status) => {
+      if (status === kakao.maps.services.Status.OK) {
+        const places = data.slice(0, 5);
+        for (const place of places) {
+          const pLat = parseFloat(place.y), pLng = parseFloat(place.x);
+          // 기존 코스와 너무 가까운 곳 중복 제거
+          const isDup = COURSES_DB.some(c => c.destLat && Math.abs(c.destLat - pLat) < 0.0015 && Math.abs(c.destLng - pLng) < 0.0015);
+          if (isDup) continue;
+          const km = haversineKm(userLat, userLng, pLat, pLng);
+          const driveMin = kmToDriveMin(km);
+          const addr = place.road_address_name || place.address_name || '';
+          const region = addr.split(' ').slice(0, 2).join(' ');
+          PLACE_COORDS[place.place_name] = { lat: pLat, lng: pLng };
+          COURSES_DB.push({
+            id: _dynId++,
+            emoji: cat.emoji,
+            bg: bgColors[(_dynId - 2000) % bgColors.length],
+            title: place.place_name,
+            region,
+            driveMin,
+            drive: driveMin >= 60 ? `${Math.floor(driveMin/60)}시간${driveMin%60?' '+driveMin%60+'분':''}` : `${driveMin}분`,
+            total: '5~6시간',
+            rating: null,
+            cat: cat.cat,
+            weather: cat.weather,
+            season: ['봄','여름','가을','겨울'],
+            tags: cat.tags,
+            cost: '별도 확인',
+            destLat: pLat, destLng: pLng,
+            stops: [place.place_name, '주변 맛집', '주변 카페'],
+            transit: [{km:0.3,min:5},{km:0.5,min:7}],
+            timeline: [
+              { type:'place', place:place.place_name, lat:pLat, lng:pLng,
+                desc:`📍 ${addr}${place.phone?' · ☎ '+place.phone:''}`,
+                hours:'운영시간 카카오맵 확인', tip:'방문 전 운영시간을 꼭 확인하세요', kakaoUrl:place.place_url },
+              { type:'food', place:'주변 맛집', lat:null, lng:null, desc:'맛집 정보를 불러오는 중...', needsSearch:true },
+              { type:'cafe', place:'주변 카페', lat:null, lng:null, desc:'카페 정보를 불러오는 중...', needsSearch:true }
+            ],
+            isDynamic: true, needsEnrichment: true
+          });
+        }
+      }
+      if (--pending === 0) renderCourses(false);
+    }, opts);
+  }
+}
+
+async function enrichDynamicCourse(c) {
+  c.needsEnrichment = false;
+  const main = c.timeline.find(s => s.type === 'place');
+  if (!main || !main.lat) return;
+  const [restaurants, cafes] = await Promise.all([
+    searchNearbyPlaces('맛집 식당', main.lat, main.lng),
+    searchNearbyPlaces('카페', main.lat, main.lng)
+  ]);
+  const r = restaurants && restaurants[0];
+  const cf = cafes && cafes[0];
+  if (r) {
+    const rLat = parseFloat(r.y), rLng = parseFloat(r.x);
+    PLACE_COORDS[r.place_name] = { lat:rLat, lng:rLng };
+    c.timeline[1] = { type:'food', place:r.place_name, lat:rLat, lng:rLng,
+      desc:`📍 ${r.address_name}${r.phone?' · ☎ '+r.phone:''}`, kakaoUrl:r.place_url };
+    c.stops[1] = r.place_name;
+  }
+  if (cf) {
+    const cLat = parseFloat(cf.y), cLng = parseFloat(cf.x);
+    PLACE_COORDS[cf.place_name] = { lat:cLat, lng:cLng };
+    c.timeline[2] = { type:'cafe', place:cf.place_name, lat:cLat, lng:cLng,
+      desc:`📍 ${cf.address_name}${cf.phone?' · ☎ '+cf.phone:''}`, kakaoUrl:cf.place_url };
+    c.stops[2] = cf.place_name;
+  }
+  if (r || cf) showToast(`${r?r.place_name:'맛집'} 등 근처 정보를 찾았어요! 🎉`);
 }
 
 /* ─── 경로 저장 ─── */

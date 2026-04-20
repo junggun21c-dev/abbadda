@@ -1228,24 +1228,46 @@ function renderEvents(){
     </div>`).join('');
 }
 
+// 성인 전용 행사 필터 (개인전, 순수미술 위주)
+const ADULT_ONLY_KW = ['개인전','초대전','작품전','판화전','수채화전','드로잉전','유화전','회화전','아트전'];
+const CHILD_KW = ['축제','체험','어린이','가족','놀이','키즈','공원','동물','과학','역사','체육','자연','박물관'];
+
+function isAdultOnly(e){
+  const name = e.name || '';
+  if(ADULT_ONLY_KW.some(kw => name.includes(kw))) return true;
+  // 전시/미술 카테고리면서 아이 관련 키워드가 없는 것
+  if((e.codename||'').includes('전시') && !CHILD_KW.some(kw => name.includes(kw))) return true;
+  return false;
+}
+
+function childScore(e){
+  const name = e.name || '', code = e.codename || '';
+  if((code).includes('축제')) return 0;
+  if(CHILD_KW.some(kw => name.includes(kw) || code.includes(kw))) return 1;
+  return 2;
+}
+
 function openEventAll(){
-  const all=EVENTS_DB;
+  const all = EVENTS_DB.filter(e => !isAdultOnly(e))
+    .sort((a,b) => childScore(a) - childScore(b) || (a.d??999) - (b.d??999));
   let html=`<div class="sheet-title">📅 이번 주 전체 행사</div><div style="font-size:12px;color:#aaa;margin-bottom:1rem">총 ${all.length}개 행사</div>`;
   all.forEach(e=>{
     const inRange=inDistRange(e.distMin);
-    const nameHtml=e.url
-      ?`<a href="${e.url}" target="_blank" style="color:#222;text-decoration:none;font-weight:700">${e.name} <span style="font-size:11px;color:#FF6B35">↗</span></a> ${inRange?'<span style="background:#EAFAF0;color:#187A3D;font-size:9px;padding:1px 6px;border-radius:6px;font-weight:700">범위 내</span>':''}`
-      :`${e.name} ${inRange?'<span style="background:#EAFAF0;color:#187A3D;font-size:9px;padding:1px 6px;border-radius:6px;font-weight:700">범위 내</span>':''}`;
-    html+=`<div class="event-full-card">
+    const rangeBadge = inRange ? '<span style="background:#EAFAF0;color:#187A3D;font-size:9px;padding:1px 6px;border-radius:6px;font-weight:700">범위 내</span>' : '';
+    const cardClick = e.url ? `onclick="window.open('${e.url}','_blank')"` : '';
+    const nameHtml = e.url
+      ? `<a href="${e.url}" target="_blank" style="color:#222;text-decoration:none;font-weight:700">${e.name} <span style="font-size:11px;color:#FF6B35">↗</span></a> ${rangeBadge}`
+      : `<span style="font-weight:700">${e.name}</span> ${rangeBadge}`;
+    html+=`<div class="event-full-card" ${cardClick} style="${e.url?'cursor:pointer':''}">
       <div class="efc-top">
         <div class="efc-emoji" style="background:${e.bg}">${e.emoji}</div>
         <div class="efc-info">
           <div class="efc-name">${nameHtml}</div>
           <div class="efc-meta">📍 ${e.loc}</div>
-          <div class="efc-date">📅 ${e.date}${e.d<=7?` · D-${e.d||'day'}`:''}</div>
+          <div class="efc-date">📅 ${e.date}</div>
         </div>
       </div>
-      <button class="efc-btn" onclick="buildCourseWithEvent(${e.id})">➕ 이 행사 넣어서 코스 짜기</button>
+      <button class="efc-btn" onclick="event.stopPropagation();buildCourseWithEvent(${e.id})">➕ 이 행사 넣어서 코스 짜기</button>
     </div>`;
   });
   document.getElementById('eventModalContent').innerHTML=html;

@@ -2072,18 +2072,15 @@ function renderPopups(){
     }
     return;
   }
-  el.innerHTML=active.map(p=>{
-    const dBadge = (p.d!=null && p.d<=7) ? `<span class="d-badge">D-${p.d||'day'}</span>` : '';
-    return `
+  el.innerHTML=active.map(p=>`
     <div class="event-card" onclick="openPopupDetail(${p.id})">
       <div class="event-thumb" style="background:${p.bg}"><span style="font-size:34px">${p.emoji}</span></div>
       <div class="event-body">
         <div class="event-name">${p.name}</div>
-        <div class="event-date">${p.date}${dBadge}</div>
-        <div class="event-loc">📍 ${p.loc||p.region}<span class="popup-region-badge">팝업</span></div>
+        <div class="event-date">${p.date}</div>
+        <div class="event-loc">📍 ${p.loc||p.region}</div>
       </div>
-    </div>`;
-  }).join('');
+    </div>`).join('');
 }
 
 function openPopupDetail(id){

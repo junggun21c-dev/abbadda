@@ -17,6 +17,7 @@ export default async function handler(req, res) {
   const seen = new Set();
   const allItems = [];
   const debugLog = [];
+  let firstRaw = null;
 
   for (const code of codes) {
     try {
@@ -33,8 +34,8 @@ export default async function handler(req, res) {
       const body = data?.response?.body;
       const totalCount = body?.totalCount ?? '?';
       const resultCode = header?.resultCode;
-      const topKeys = Object.keys(data || {}).join(',');
-      debugLog.push(`[${code}] resultCode=${resultCode} totalCount=${totalCount} topKeys=${topKeys} raw=${text.slice(0,200)}`);
+      if (!firstRaw) firstRaw = text.slice(0, 500);
+      debugLog.push(`[${code}] rc=${resultCode} total=${totalCount} keys=${Object.keys(data||{}).join(',')}`);
 
       if (resultCode && resultCode !== '0000') continue;
 
@@ -57,6 +58,6 @@ export default async function handler(req, res) {
   return res.status(200).json({
     items: allItems,
     total: allItems.length,
-    debug: { todayStr, startFrom, log: debugLog }
+    debug: { todayStr, startFrom, log: debugLog, firstRaw }
   });
 }

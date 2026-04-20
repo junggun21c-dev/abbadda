@@ -1222,7 +1222,7 @@ function renderEvents(){
       <div class="event-thumb" style="background:${e.bg}">${e.emoji}</div>
       <div class="event-body">
         <div class="event-name">${e.name}</div>
-        <div class="event-date">${e.date}${e.d<=7?`<span class="d-badge">D-${e.d||'day'}</span>`:''}</div>
+        <div class="event-date">${e.date}</div>
         <div class="event-loc">📍 ${e.loc}</div>
       </div>
     </div>`).join('');

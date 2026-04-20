@@ -2,68 +2,50 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  const { areaCodes } = req.query;
-  const KEY = '7cd0819411acef067d0cc1ab73350bb7105cde8c2fd3de620bec99e518953f95';
-
+  const SEOUL_KEY = '6a7a54434f6a756e38375463465563';
   const now = new Date();
-  const fmt = (d) => `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
-  const todayStr = fmt(now);
+  const todayStr = now.toISOString().slice(0, 10); // "2026-04-20"
 
-  // 6개월 전부터 시작한 행사 포함 (eventEndDate 제거 - 필터 너무 좁아짐)
-  const past180 = new Date(now); past180.setDate(past180.getDate() - 180);
-  const startFrom = fmt(past180);
-
-  const codes = (areaCodes || '1,31').split(',').map(s => s.trim()).filter(Boolean).slice(0, 6);
   const seen = new Set();
   const allItems = [];
-  const debugLog = [];
-  let firstRaw = null;
 
-  for (const code of codes) {
-    try {
-      const url = `https://apis.data.go.kr/B551011/KorService2/searchFestival2?serviceKey=${KEY}&numOfRows=100&pageNo=1&MobileOS=ETC&MobileApp=%EC%95%84%EB%B9%A0%EB%94%B0&_type=json&arrange=A&eventStartDate=${startFrom}&areaCode=${code}`;
-      const resp = await fetch(url);
-      if (!resp.ok) { debugLog.push(`[${code}] HTTP ${resp.status}`); continue; }
+  // 서울 열린데이터 문화행사 API - 1000건 조회 후 진행중/예정 필터
+  try {
+    const url = `http://openapi.seoul.go.kr:8088/${SEOUL_KEY}/json/culturalEventInfo/1/1000/`;
+    const resp = await fetch(url);
+    if (resp.ok) {
+      const data = await resp.json();
+      const rows = data?.culturalEventInfo?.row || [];
 
-      const text = await resp.text();
-      let data;
-      try { data = JSON.parse(text); }
-      catch(e) { debugLog.push(`[${code}] JSON parse fail: ${text.slice(0,150)}`); continue; }
+      for (const row of rows) {
+        const endDate = (row.END_DATE || '').slice(0, 10);
+        const startDate = (row.STRTDATE || '').slice(0, 10);
+        if (!endDate || endDate < todayStr) continue; // 종료된 행사 제외
 
-      // 에러 응답: {resultCode, resultMsg} 플랫 구조
-      if (data.resultCode && data.resultCode !== '0000') {
-        debugLog.push(`[${code}] error: ${data.resultCode} ${data.resultMsg}`);
-        continue;
+        const key = row.TITLE + startDate;
+        if (seen.has(key)) continue;
+        seen.add(key);
+
+        // TourAPI 호환 포맷으로 변환
+        allItems.push({
+          title: row.TITLE,
+          eventstartdate: startDate.replace(/-/g, ''),
+          eventenddate: endDate.replace(/-/g, ''),
+          addr1: `서울 ${row.GUNAME || ''} ${row.PLACE || ''}`.trim(),
+          mapy: row.LAT || null,
+          mapx: row.LOT || null,
+          contentid: `seoul_${seen.size}`,
+          firstimage: row.MAIN_IMG || '',
+          url: row.HMPG_ADDR || row.ORG_LINK || '',
+          usefee: row.USE_FEE || '',
+          usetimefestival: row.PRO_TIME || '',
+          codename: row.CODENAME || '',
+        });
       }
-
-      const header = data?.response?.header;
-      const body = data?.response?.body;
-      const totalCount = body?.totalCount ?? '?';
-      const resultCode = header?.resultCode;
-      if (!firstRaw) firstRaw = text.slice(0, 500);
-      debugLog.push(`[${code}] rc=${resultCode} total=${totalCount}`);
-
-      if (resultCode && resultCode !== '0000') continue;
-
-      const items = body?.items?.item;
-      if (!items) continue;
-      const arr = Array.isArray(items) ? items : [items];
-      for (const item of arr) {
-        const endDate = String(item.eventenddate || '');
-        if (endDate.length === 8 && endDate < todayStr) continue;
-        if (item.contentid && !seen.has(item.contentid)) {
-          seen.add(item.contentid);
-          allItems.push(item);
-        }
-      }
-    } catch(e) {
-      debugLog.push(`[${code}] exception: ${e.message}`);
     }
+  } catch(e) {
+    return res.status(200).json({ items: [], total: 0, error: e.message });
   }
 
-  return res.status(200).json({
-    items: allItems,
-    total: allItems.length,
-    debug: { todayStr, startFrom, log: debugLog, firstRaw }
-  });
+  return res.status(200).json({ items: allItems, total: allItems.length });
 }

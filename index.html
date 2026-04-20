@@ -951,6 +951,7 @@ async function loadEventsFromTourAPI() {
     const data = await resp.json();
     let allItems = data.items || [];
     console.log('[행사] 응답 items 수:', allItems.length);
+    if (data.debug) console.log('[행사] debug:', JSON.stringify(data.debug));
 
     // contentid 기준 중복 제거
     const seen = new Set();

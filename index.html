@@ -2286,8 +2286,8 @@ async function loadDynamicCourses() {
   const ps = new kakao.maps.services.Places();
   const opts = {
     location: new kakao.maps.LatLng(userLat, userLng),
-    radius: 60000,
-    sort: kakao.maps.services.SortBy.ACCURACY
+    radius: 20000,
+    sort: kakao.maps.services.SortBy.DISTANCE
   };
 
   let pending = DYNAMIC_CATEGORIES.length;

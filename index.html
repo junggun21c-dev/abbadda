@@ -1151,8 +1151,8 @@ function cycleWeather(){
   document.getElementById('bannerTitle').textContent=w.banner;
   shownCourseIds=new Set(); renderCourses(true);
 }
-function onAgeChange(val){ updateSub(); renderCourses(true); renderEvents(); }
-function onAge2Change(val){ renderCourses(true); renderEvents(); }
+function onAgeChange(val){ updateSub(); shownCourseIds=new Set(); renderCourses(true); renderEvents(); renderPopups(); }
+function onAge2Change(val){ shownCourseIds=new Set(); renderCourses(true); renderEvents(); renderPopups(); }
 function onChildCountChange(val){
   const w=document.getElementById('age2Wrap');
   if(w) w.style.display = val==='2' ? 'flex' : 'none';
@@ -1226,12 +1226,16 @@ function setFilter(el,val){
 }
 
 function renderEvents(){
+  const curAges=getChildAges();
   const all=getEventsByDist()
     .sort((a,b)=>{
       const aOngoing=(a.d??999)===0?0:1, bOngoing=(b.d??999)===0?0:1;
       const aFest=(a.codename||'').includes('축제')?0:1, bFest=(b.codename||'').includes('축제')?0:1;
       if(aOngoing!==bOngoing) return aOngoing-bOngoing;
       if(aFest!==bFest) return aFest-bFest;
+      // 나이 적합도 점수 (높을수록 상단)
+      const sa=calcAgeContentScore(a.name,curAges), sb=calcAgeContentScore(b.name,curAges);
+      if(sb!==sa) return sb-sa;
       return (a.d??999)-(b.d??999)||a.distMin-b.distMin;
     });
   document.getElementById('eventBadge').textContent=`${all.length}`;
@@ -1256,6 +1260,29 @@ function renderEvents(){
         <div class="event-loc">📍 ${e.loc}</div>
       </div>
     </div>`).join('');
+}
+
+// 나이대별 행사·팝업 적합도 점수
+function calcAgeContentScore(name, ages){
+  if(!ages || ages[0]===0) return 0; // 나이무관
+  const age=ages[0];
+  const t=name||'';
+  let s=0;
+  if(age<=2){
+    if(/아기|유아|영아|영유아|0세|1세|2세|감각|율동|낮잠|베이비/.test(t)) s+=4;
+    if(/어린이|가족|체험/.test(t)) s+=1;
+    if(/트레킹|등산|역사|전시|공연|어드벤처|DMZ/.test(t)) s-=3;
+  } else if(age<=5){
+    if(/어린이|유아|키즈|가족|체험|동물|공룡|캐릭터|자연|놀이|풍선|버블/.test(t)) s+=3;
+    if(/트레킹|역사|DMZ|전시|작품/.test(t)) s-=2;
+  } else if(age<=9){
+    if(/체험|과학|역사|축제|자연|가족|어린이|스포츠|체육|공원|생태/.test(t)) s+=2;
+    if(/아기|영유아/.test(t)) s-=1;
+  } else {
+    if(/역사|문화|과학|스포츠|체험|축제|어드벤처|트레킹|생태|공연/.test(t)) s+=2;
+    if(/아기|영유아|베이비/.test(t)) s-=2;
+  }
+  return s;
 }
 
 // 성인 전용 행사 필터 (개인전, 순수미술 위주)
@@ -2216,12 +2243,17 @@ function renderPopups(){
     if(!p.endDateRaw) return true;
     return new Date(p.endDateRaw)>=today;
   });
+  const curAges=getChildAges();
   const active=all.filter(p=>{
     if(p.distMin && !inDistRange(p.distMin)) return false;
     if(catVal==='실내' && getPopupPlaceType(p)!=='실내') return false;
     if(catVal==='실외' && getPopupPlaceType(p)!=='실외') return false;
     return true;
-  }).sort((a,b)=>(a.distMin||120)-(b.distMin||120));
+  }).sort((a,b)=>{
+    const sa=calcAgeContentScore(a.name,curAges), sb=calcAgeContentScore(b.name,curAges);
+    if(sb!==sa) return sb-sa;
+    return (a.distMin||120)-(b.distMin||120);
+  });
   document.getElementById('popupBadge').textContent=active.length;
   const el=document.getElementById('popupList');
   if(!active.length){

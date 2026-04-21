@@ -2395,7 +2395,10 @@ function toggleSaveRoute(idx){
 /* ─── URL 링크 복사 ─── */
 function copyRouteUrl(courseId){
   const baseUrl = window.location.href.split('?')[0];
-  const shareUrl = baseUrl + '?course=' + courseId;
+  // 행사 코스(id 9000+)는 ?event=<eventId> 로 공유 → 새 탭에서도 재생성 가능
+  const shareUrl = courseId >= 9000
+    ? baseUrl + '?event=' + (courseId - 9000)
+    : baseUrl + '?course=' + courseId;
   const btn = document.getElementById('copyUrlBtn');
 
   if(navigator.clipboard && navigator.clipboard.writeText){
@@ -2434,6 +2437,25 @@ function checkUrlCourse(){
   }catch(e){}
 }
 
+/* ─── URL ?event= 파라미터로 행사 코스 재생성 ─── */
+function checkUrlEvent(){
+  try{
+    const p = new URLSearchParams(window.location.search);
+    const eid = parseInt(p.get('event'));
+    if(isNaN(eid)) return;
+    let attempts = 0;
+    const tryOpen = () => {
+      const e = EVENTS_DB.find(x => x.id === eid);
+      if(e){
+        buildCourseWithEvent(eid);
+      } else if(attempts++ < 15){
+        setTimeout(tryOpen, 1000); // EVENTS_DB 로드 대기, 최대 15초
+      }
+    };
+    setTimeout(tryOpen, 1500); // API 로드 시작 후 대기
+  }catch(e){}
+}
+
 let POPUPS_DB = [];
 let popupLoaded = false;
 
@@ -2443,7 +2465,7 @@ renderCourses(false);
 initHomeLabel();
 loadEventsFromTourAPI();
 initLocation();
-setTimeout(() => { loadKakaoSDK(); checkUrlCourse(); }, 1500);
+setTimeout(() => { loadKakaoSDK(); checkUrlCourse(); checkUrlEvent(); }, 1500);
 setTimeout(() => { loadDynamicCourses(); }, 4000); // 위치·카카오 SDK 준비 후 동적 코스 로드
 </script>
 </body>

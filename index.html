@@ -1543,7 +1543,7 @@ function renderCourseDetail(){
       <div class="tl-right">
         <div class="tl-header">
           <div><div style="display:flex;align-items:center;gap:5px;"><div class="tl-place">${s.place}</div><span class="tl-chip ${s.type}">${s.type==='food'?'식사':s.type==='cafe'?'카페':'장소'}</span></div><div class="tl-time">${t}</div></div>
-          <button class="chg-btn" id="chgBtn${i}" onclick="changeStep(${i})">${s.type==='place'?'🔄':'🔄'} 변경</button>
+          ${s.type!=='place'?`<button class="chg-btn" id="chgBtn${i}" onclick="changeStep(${i})">🔄 변경</button>`:''}
         </div>
         <div class="tl-desc">${s.desc}</div>
         ${(s.naverRating||s.admission||s.hours)?`
@@ -1640,11 +1640,14 @@ async function renderCourseMap(c){
 function showCenterLoading(){ document.getElementById('centerLoading').style.display='flex'; }
 function hideCenterLoading(){ document.getElementById('centerLoading').style.display='none'; }
 
+// 코스별·스텝별 이미 추천한 장소 이름 기록
+const _stepHistory = {};
+
 async function changeStep(stepIdx){
   const c = COURSES_DB[currentCourseIdx];
   const s = c.timeline[stepIdx];
   const catCode = s.type==='food' ? 'FD6' : s.type==='cafe' ? 'CE7' : null;
-  if(!catCode){ showToast('행사·장소는 변경할 수 없어요'); return; }
+  if(!catCode) return;
 
   const btn = document.getElementById('chgBtn'+stepIdx);
   if(btn){ btn.disabled=true; btn.textContent='탐색 중…'; }
@@ -1655,15 +1658,28 @@ async function changeStep(stepIdx){
 
   const searchLat = s.lat || c.destLat || 37.5665;
   const searchLng = s.lng || c.destLng || 126.9780;
-  const results = await searchNearbyPlaces(catCode, searchLat, searchLng);
-  hideCenterLoading();
 
-  if(!results || results.length===0){
-    if(btn){btn.disabled=false;btn.textContent='🔄 변경';}
-    showToast('주변에 다른 장소를 찾지 못했어요 😅'); return;
+  // 히스토리 키: 코스ID + 스텝인덱스
+  const histKey = `${c.id}_${stepIdx}`;
+  if(!_stepHistory[histKey]) _stepHistory[histKey] = new Set();
+  // 현재 장소도 히스토리에 추가
+  _stepHistory[histKey].add(s.place);
+
+  let results = await searchNearbyPlaces(catCode, searchLat, searchLng);
+  let newPlace = results && results.find(r => !_stepHistory[histKey].has(r.place_name));
+
+  // 반경 내 후보 소진 시 히스토리 초기화 후 재탐색
+  if(!newPlace && results && results.length > 0){
+    _stepHistory[histKey].clear();
+    newPlace = results.find(r => r.place_name !== s.place) || results[0];
   }
 
-  const newPlace = results.find(r => r.place_name !== s.place) || results[0];
+  hideCenterLoading();
+
+  if(!newPlace){ if(btn){btn.disabled=false;btn.textContent='🔄 변경';} showToast('주변에 추천할 곳이 없어요 😅'); return; }
+
+  _stepHistory[histKey].add(newPlace.place_name);
+
   s.place    = newPlace.place_name;
   s.lat      = parseFloat(newPlace.y);
   s.lng      = parseFloat(newPlace.x);
@@ -2071,9 +2087,9 @@ function searchNearbyPlaces(categoryCode, lat, lng) {
     try {
       const ps = new kakao.maps.services.Places();
       ps.categorySearch(categoryCode, (data, status) => {
-        if (status === kakao.maps.services.Status.OK && data.length > 0) resolve(data.slice(0,5));
+        if (status === kakao.maps.services.Status.OK && data.length > 0) resolve(data);
         else resolve(null);
-      }, { location: new kakao.maps.LatLng(lat, lng), radius: 800, sort: kakao.maps.services.SortBy.DISTANCE });
+      }, { location: new kakao.maps.LatLng(lat, lng), radius: 800, size: 15, sort: kakao.maps.services.SortBy.DISTANCE });
     } catch(err) { resolve(null); }
   });
 }

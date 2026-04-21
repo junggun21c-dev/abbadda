@@ -1564,7 +1564,7 @@ function renderCourseDetail(){
         </div>`:''}
         ${s.tip?`<div class="tl-tip">💡 ${s.tip}</div>`:''}
         <div class="place-links">
-          <a class="pl nv" href="https://map.naver.com/v5/search/${nq}" target="_blank">🔍 네이버</a>
+          ${s.naverRating?`<a class="pl nv" href="https://map.naver.com/v5/search/${nq}" target="_blank">🔍 네이버</a>`:''}
           <a class="pl yt" href="https://www.youtube.com/results?search_query=${yq}" target="_blank">▶ 유튜브</a>
           ${s.kakaoUrl?`<a class="pl kk" href="${s.kakaoUrl}" target="_blank">🗺 카카오</a>`:''}
         </div>
@@ -2103,8 +2103,11 @@ function searchNearbyPlaces(categoryCode, lat, lng) {
     try {
       const ps = new kakao.maps.services.Places();
       ps.categorySearch(categoryCode, (data, status) => {
-        if (status === kakao.maps.services.Status.OK && data.length > 0) resolve(data);
-        else resolve(null);
+        if (status === kakao.maps.services.Status.OK && data.length > 0) {
+          // 전화번호 없는 업체 제외 — 미등록/폐업 가능성 높음
+          const verified = data.filter(p => p.phone && p.phone.trim());
+          resolve(verified.length > 0 ? verified : null);
+        } else resolve(null);
       }, { location: new kakao.maps.LatLng(lat, lng), radius: 800, size: 15, sort: kakao.maps.services.SortBy.DISTANCE });
     } catch(err) { resolve(null); }
   });

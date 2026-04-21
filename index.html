@@ -112,7 +112,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:#F5F6FA;min-height:100vh;d
 .tl-item{display:flex;gap:10px;padding:0;}
 .tl-left{display:flex;flex-direction:column;align-items:center;width:26px;flex-shrink:0;}
 .tl-num{width:26px;height:26px;border-radius:50%;background:#6C63FF;color:white;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;}
-.tl-vseg{width:2px;background:#E8E4DC;flex:1;min-height:20px;position:relative;}.tl-conn-row{display:flex;gap:10px;align-items:stretch;}.tl-conn-left{width:26px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;position:relative;min-height:48px;}.tl-transit-lbl{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:10px;color:#888;background:white;border:1px solid #DDD;border-radius:20px;padding:2px 9px;white-space:nowrap;z-index:2;}
+.tl-vseg{width:2px;background:#E8E4DC;flex:1;min-height:20px;position:relative;}.tl-conn-row{display:flex;gap:10px;align-items:stretch;}.tl-conn-left{width:26px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;position:relative;min-height:48px;}.tl-transit-lbl{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:10px;color:#888;background:white;border:1px solid #DDD;border-radius:20px;padding:2px 7px;white-space:normal;text-align:center;line-height:1.4;z-index:2;}
 .tl-right{flex:1;padding:2px 0 12px;}
 .tl-header{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:2px;}
 .tl-place{font-size:15px;font-weight:700;color:#111;}
@@ -1135,7 +1135,8 @@ function initHomeLabel() {
   }
 }
 
-function fmtMin(m){return m>=60?`${Math.floor(m/60)}시간${m%60?` ${m%60}분`:''}` :`${m}분`;}
+function fmtMin(m){return m>=60?`${Math.floor(m/60)}시간${m%60?`<br>${m%60}분`:''}` :`${m}분`;}
+function fmtDrive(s){return s.replace(/약\s*/,'').replace(/(\s*)(\d+분)$/,'<br>$2');}
 function shuffle(arr){return [...arr].sort(()=>Math.random()-0.5);}
 
 function setDist(el,min,max){
@@ -1527,7 +1528,7 @@ function renderCourseDetail(){
       <div class="home-info"><div class="home-label">출발지</div><div class="home-addr">${homeAddr}</div></div>
     </div>
     <div class="tl-conn-row">
-      <div class="tl-conn-left"><div class="tl-vseg"></div><span class="tl-transit-lbl">${c.drive.replace(/약\s*/,'')}</span></div>
+      <div class="tl-conn-left"><div class="tl-vseg"></div><span class="tl-transit-lbl">${fmtDrive(c.drive)}</span></div>
     </div>`;
 
   c.timeline.forEach((s,i)=>{
@@ -1538,7 +1539,7 @@ function renderCourseDetail(){
     <div class="tl-item">
       <div class="tl-left">
         <div class="tl-num">${i+1}</div>
-        <div class="tl-vseg">${i<c.timeline.length-1?(tr[i]?'<span class="tl-transit-lbl">'+fmtMin(tr[i].min)+'</span>':''):'<span class="tl-transit-lbl">'+c.drive.replace(/약\s*/,'')+'</span>'}</div>
+        <div class="tl-vseg">${i<c.timeline.length-1?(tr[i]?'<span class="tl-transit-lbl">'+fmtMin(tr[i].min)+'</span>':''):'<span class="tl-transit-lbl">'+fmtDrive(c.drive)+'</span>'}</div>
       </div>
       <div class="tl-right">
         <div class="tl-header">

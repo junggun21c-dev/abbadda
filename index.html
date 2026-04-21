@@ -1643,6 +1643,8 @@ function hideCenterLoading(){ document.getElementById('centerLoading').style.dis
 
 // 코스별·스텝별 이미 추천한 장소 이름 기록
 const _stepHistory = {};
+// 코스별 변경된 스텝 저장 (링크 공유용)
+const _courseMods = {};
 
 async function changeStep(stepIdx){
   const c = COURSES_DB[currentCourseIdx];
@@ -1689,6 +1691,10 @@ async function changeStep(stepIdx){
   delete s.needsSearch;
   if(c.stops) c.stops[stepIdx] = newPlace.place_name;
   PLACE_COORDS[newPlace.place_name] = { lat:s.lat, lng:s.lng };
+
+  // 수정 내역 저장 (링크 공유 시 복원용)
+  if(!_courseMods[c.id]) _courseMods[c.id] = {};
+  _courseMods[c.id][stepIdx] = { name:s.place, lat:s.lat, lng:s.lng, desc:s.desc, url:s.kakaoUrl };
 
   renderCourseDetail();
   renderCourseMap(c);
@@ -2467,10 +2473,14 @@ function toggleSaveRoute(idx){
 /* ─── URL 링크 복사 ─── */
 function copyRouteUrl(courseId){
   const baseUrl = window.location.href.split('?')[0];
-  // 행사 코스(id 9000+)는 ?event=<eventId> 로 공유 → 새 탭에서도 재생성 가능
-  const shareUrl = courseId >= 9000
+  let shareUrl = courseId >= 9000
     ? baseUrl + '?event=' + (courseId - 9000)
     : baseUrl + '?course=' + courseId;
+  // 변경된 스텝이 있으면 URL에 인코딩해서 포함
+  const mods = _courseMods[courseId];
+  if(mods && Object.keys(mods).length > 0){
+    shareUrl += '&m=' + encodeURIComponent(JSON.stringify(mods));
+  }
   const btn = document.getElementById('copyUrlBtn');
 
   if(navigator.clipboard && navigator.clipboard.writeText){
@@ -2493,6 +2503,21 @@ function fallbackCopy(url,btn){
   }catch(e){ showToast('링크: '+url); }
 }
 
+function applyUrlMods(c, mStr){
+  try{
+    const mods = JSON.parse(mStr);
+    Object.entries(mods).forEach(([si, mod])=>{
+      const s = c.timeline[parseInt(si)];
+      if(!s) return;
+      s.place = mod.name; s.lat = mod.lat; s.lng = mod.lng;
+      s.desc = mod.desc; s.kakaoUrl = mod.url;
+      delete s.needsSearch;
+      if(c.stops) c.stops[parseInt(si)] = mod.name;
+      PLACE_COORDS[mod.name] = { lat:mod.lat, lng:mod.lng };
+    });
+  }catch(e){}
+}
+
 /* ─── URL 파라미터로 코스 자동 오픈 ─── */
 let _urlCourseOpened = false;
 function checkUrlCourse(){
@@ -2504,6 +2529,8 @@ function checkUrlCourse(){
     const idx = COURSES_DB.findIndex(c => c.id === cid);
     if(idx >= 0){
       _urlCourseOpened = true;
+      const mStr = p.get('m');
+      if(mStr) applyUrlMods(COURSES_DB[idx], mStr);
       setTimeout(()=>openCourse(idx), 600);
     }
   }catch(e){}
@@ -2516,10 +2543,17 @@ function checkUrlEvent(){
     const eid = parseInt(p.get('event'));
     if(isNaN(eid)) return;
     let attempts = 0;
+    const mStr = p.get('m');
     const tryOpen = () => {
       const e = EVENTS_DB.find(x => x.id === eid);
       if(e){
-        buildCourseWithEvent(eid);
+        buildCourseWithEvent(eid).then(()=>{
+          if(mStr){
+            const c = COURSES_DB.find(x => x.id === 9000+eid);
+            if(c) applyUrlMods(c, mStr);
+            renderCourseDetail(); renderCourseMap(c);
+          }
+        });
       } else if(attempts++ < 15){
         setTimeout(tryOpen, 1000); // EVENTS_DB 로드 대기, 최대 15초
       }

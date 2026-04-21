@@ -1151,7 +1151,7 @@ function cycleWeather(){
   document.getElementById('bannerTitle').textContent=w.banner;
   shownCourseIds=new Set(); renderCourses(true);
 }
-function onAgeChange(val){ updateSub(); shownCourseIds=new Set(); renderCourses(true); renderEvents(); renderPopups(); }
+function onAgeChange(val){ updateSub(); shownCourseIds=new Set(); renderCourses(true); renderEvents(); renderPopups(); showToast('자녀의 나이대에 맞는 행사 팝업 코스를 보여드려요'); }
 function onAge2Change(val){ shownCourseIds=new Set(); renderCourses(true); renderEvents(); renderPopups(); }
 function onChildCountChange(val){
   const w=document.getElementById('age2Wrap');

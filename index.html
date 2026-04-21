@@ -1136,7 +1136,7 @@ function initHomeLabel() {
 }
 
 function fmtMin(m){return m>=60?`${Math.floor(m/60)}시간${m%60?`<br>${m%60}분`:''}` :`${m}분`;}
-function fmtDrive(s){return s.replace(/약\s*/,'').replace(/(\s*)(\d+분)$/,'<br>$2');}
+function fmtDrive(s){return s.replace(/약\s*/,'').replace(/(\d+시간)\s+(\d+분)/,'$1<br>$2');}
 function shuffle(arr){return [...arr].sort(()=>Math.random()-0.5);}
 
 function setDist(el,min,max){

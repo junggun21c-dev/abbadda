@@ -128,8 +128,14 @@ body{font-family:'Noto Sans KR',sans-serif;background:#F5F6FA;min-height:100vh;d
 .tl-chip.food{background:#F3F2F0;color:#888;}
 .tl-chip.cafe{background:#F3F2F0;color:#888;}
 .tl-chip.place{background:#F3F2F0;color:#888;}
-.del-btn{background:none;border:1px solid #E0DDDA;border-radius:8px;color:#AAA;font-size:11px;padding:3px 9px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;white-space:nowrap;flex-shrink:0;}
-.del-btn:active{background:#F5F4F2;}
+.chg-btn{background:none;border:1px solid #6C63FF;border-radius:8px;color:#6C63FF;font-size:11px;padding:3px 9px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;white-space:nowrap;flex-shrink:0;font-weight:600;}
+.chg-btn:active{background:#EDE9FF;}
+.chg-btn:disabled{border-color:#ccc;color:#ccc;cursor:default;}
+.center-loading{position:fixed;inset:0;background:rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;z-index:9999;}
+.center-loading-box{background:white;border-radius:20px;padding:28px 36px;display:flex;flex-direction:column;align-items:center;gap:14px;box-shadow:0 8px 32px rgba(0,0,0,0.18);}
+.center-loading-spinner{width:38px;height:38px;border:3px solid #EDE9FF;border-top:3px solid #6C63FF;border-radius:50%;animation:spin 0.8s linear infinite;}
+.center-loading-txt{font-size:13px;color:#555;font-family:'Noto Sans KR',sans-serif;}
+@keyframes spin{to{transform:rotate(360deg);}}
 .place-links{display:flex;gap:5px;margin-top:6px;}
 .pl{display:inline-flex;align-items:center;gap:2px;border-radius:6px;padding:3px 10px;font-size:10px;font-weight:500;text-decoration:none;border:1px solid #E8E4DC;background:white;color:#555;}.pl:active{background:#F5F4F2;}
 
@@ -360,6 +366,12 @@ body{font-family:'Noto Sans KR',sans-serif;background:#F5F6FA;min-height:100vh;d
       <ul class="addr-dropdown" id="addrDropdown"></ul>
     </div>
     <button class="addr-save-btn" id="saveAddrBtn" onclick="saveHomeAddr()">저장하기</button>
+  </div>
+</div>
+<div class="center-loading" id="centerLoading" style="display:none">
+  <div class="center-loading-box">
+    <div class="center-loading-spinner"></div>
+    <div class="center-loading-txt">주변 장소 탐색 중...</div>
   </div>
 </div>
 <div class="custom-alert" id="customAlert">
@@ -1531,7 +1543,7 @@ function renderCourseDetail(){
       <div class="tl-right">
         <div class="tl-header">
           <div><div style="display:flex;align-items:center;gap:5px;"><div class="tl-place">${s.place}</div><span class="tl-chip ${s.type}">${s.type==='food'?'식사':s.type==='cafe'?'카페':'장소'}</span></div><div class="tl-time">${t}</div></div>
-          <button class="del-btn" onclick="askDeleteStep(${i})">삭제</button>
+          <button class="chg-btn" id="chgBtn${i}" onclick="changeStep(${i})">${s.type==='place'?'🔄':'🔄'} 변경</button>
         </div>
         <div class="tl-desc">${s.desc}</div>
         ${(s.naverRating||s.admission||s.hours)?`
@@ -1623,6 +1635,47 @@ async function renderCourseMap(c){
     const box2=document.getElementById('courseMapBox');
     if(box2)box2.innerHTML='<span style="color:#aaa;font-size:13px">지도를 표시할 수 없어요</span>';
   }
+}
+
+function showCenterLoading(){ document.getElementById('centerLoading').style.display='flex'; }
+function hideCenterLoading(){ document.getElementById('centerLoading').style.display='none'; }
+
+async function changeStep(stepIdx){
+  const c = COURSES_DB[currentCourseIdx];
+  const s = c.timeline[stepIdx];
+  const catCode = s.type==='food' ? 'FD6' : s.type==='cafe' ? 'CE7' : null;
+  if(!catCode){ showToast('행사·장소는 변경할 수 없어요'); return; }
+
+  const btn = document.getElementById('chgBtn'+stepIdx);
+  if(btn){ btn.disabled=true; btn.textContent='탐색 중…'; }
+  showCenterLoading();
+
+  const loaded = await loadKakaoSDK();
+  if(!loaded){ hideCenterLoading(); if(btn){btn.disabled=false;btn.textContent='🔄 변경';} showToast('지도 SDK를 불러올 수 없어요'); return; }
+
+  const searchLat = s.lat || c.destLat || 37.5665;
+  const searchLng = s.lng || c.destLng || 126.9780;
+  const results = await searchNearbyPlaces(catCode, searchLat, searchLng);
+  hideCenterLoading();
+
+  if(!results || results.length===0){
+    if(btn){btn.disabled=false;btn.textContent='🔄 변경';}
+    showToast('주변에 다른 장소를 찾지 못했어요 😅'); return;
+  }
+
+  const newPlace = results.find(r => r.place_name !== s.place) || results[0];
+  s.place    = newPlace.place_name;
+  s.lat      = parseFloat(newPlace.y);
+  s.lng      = parseFloat(newPlace.x);
+  s.desc     = `📍 ${newPlace.address_name}${newPlace.phone?' · ☎ '+newPlace.phone:''}`;
+  s.kakaoUrl = newPlace.place_url || null;
+  delete s.needsSearch;
+  if(c.stops) c.stops[stepIdx] = newPlace.place_name;
+  PLACE_COORDS[newPlace.place_name] = { lat:s.lat, lng:s.lng };
+
+  renderCourseDetail();
+  renderCourseMap(c);
+  showToast('새로운 코스를 추천합니다 ✨');
 }
 
 function askDeleteStep(stepIdx){pendingDeleteStepIdx=stepIdx;document.getElementById('customAlert').classList.add('open');}

@@ -12,8 +12,8 @@ body{font-family:'Noto Sans KR',sans-serif;background:#F5F6FA;min-height:100vh;d
 .app{width:100%;max-width:430px;background:#F5F6FA;min-height:100vh;padding-bottom:80px;}
 .header{background:linear-gradient(135deg,#6C63FF 0%,#a855f7 100%);padding:1.2rem 1rem 1rem;border-radius:0 0 28px 28px;}
 .header-top{display:flex;align-items:center;justify-content:space-between;gap:10px;}
-.logo-main{font-size:24px;font-weight:700;letter-spacing:-0.5px;color:white;}
-.logo-sub{font-size:13px;opacity:0.9;font-weight:500;margin-top:2px;color:white;}
+.logo-img{height:42px;width:auto;display:block;mix-blend-mode:multiply;margin-bottom:2px;}
+.logo-sub{font-size:13px;opacity:0.9;font-weight:500;color:white;}
 .filter-row{display:flex;gap:7px;flex-shrink:0;scrollbar-width:none;}
 .filter-row::-webkit-scrollbar{display:none;}
 .chip{background:rgba(255,255,255,0.18);border:1px solid rgba(255,255,255,0.3);border-radius:20px;padding:6px 13px;font-size:13px;color:white;white-space:nowrap;cursor:pointer;transition:all 0.15s;}
@@ -247,7 +247,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:#F5F6FA;min-height:100vh;d
 <div class="app">
   <div class="header">
     <div class="header-top">
-      <div><div class="logo-main">아빠따라</div><div class="logo-sub">아빠만 따라오면 돼! <span class="gps-badge pulse" id="gpsBadge">📍 위치 감지 중</span></div></div>
+      <div><img src="logo.png" alt="아빠따라" class="logo-img"><div class="logo-sub">아빠만 따라오면 돼! <span class="gps-badge pulse" id="gpsBadge">📍 위치 감지 중</span></div></div>
       <div class="filter-row" id="catFilter">
         <div class="chip active" onclick="setFilter(this,'전체')">전체</div>
         <div class="chip" onclick="setFilter(this,'실외')">실외</div>

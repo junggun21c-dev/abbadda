@@ -1228,6 +1228,7 @@ function setFilter(el,val){
 function renderEvents(){
   const curAges=getChildAges();
   const all=getEventsByDist()
+    .filter(e => curAges[0]===0 || calcAgeContentScore(e.name, curAges) > -2)
     .sort((a,b)=>{
       const aOngoing=(a.d??999)===0?0:1, bOngoing=(b.d??999)===0?0:1;
       const aFest=(a.codename||'').includes('축제')?0:1, bFest=(b.codename||'').includes('축제')?0:1;
@@ -1262,7 +1263,7 @@ function renderEvents(){
     </div>`).join('');
 }
 
-// 나이대별 행사·팝업 적합도 점수
+// 나이대별 행사·팝업 적합도 점수 (음수 임계치 이하면 렌더링에서 제외)
 function calcAgeContentScore(name, ages){
   if(!ages || ages[0]===0) return 0; // 나이무관
   const age=ages[0];
@@ -1271,16 +1272,20 @@ function calcAgeContentScore(name, ages){
   if(age<=2){
     if(/아기|유아|영아|영유아|0세|1세|2세|감각|율동|낮잠|베이비/.test(t)) s+=4;
     if(/어린이|가족|체험/.test(t)) s+=1;
+    if(/청소년|중학|고등|성인|어른|강좌|강의|취업|직업/.test(t)) s-=5;
     if(/트레킹|등산|역사|전시|공연|어드벤처|DMZ/.test(t)) s-=3;
   } else if(age<=5){
     if(/어린이|유아|키즈|가족|체험|동물|공룡|캐릭터|자연|놀이|풍선|버블/.test(t)) s+=3;
+    if(/청소년|중학|고등|성인|어른|강좌|강의|취업/.test(t)) s-=5;
     if(/트레킹|역사|DMZ|전시|작품/.test(t)) s-=2;
   } else if(age<=9){
     if(/체험|과학|역사|축제|자연|가족|어린이|스포츠|체육|공원|생태/.test(t)) s+=2;
+    if(/청소년|중학|고등|성인|어른|강좌|강의|취업/.test(t)) s-=3;
     if(/아기|영유아/.test(t)) s-=1;
   } else {
-    if(/역사|문화|과학|스포츠|체험|축제|어드벤처|트레킹|생태|공연/.test(t)) s+=2;
+    if(/역사|문화|과학|스포츠|체험|축제|어드벤처|트레킹|생태|공연|청소년/.test(t)) s+=2;
     if(/아기|영유아|베이비/.test(t)) s-=2;
+    if(/성인|어른|강좌|취업/.test(t)) s-=3;
   }
   return s;
 }
@@ -2248,6 +2253,7 @@ function renderPopups(){
     if(p.distMin && !inDistRange(p.distMin)) return false;
     if(catVal==='실내' && getPopupPlaceType(p)!=='실내') return false;
     if(catVal==='실외' && getPopupPlaceType(p)!=='실외') return false;
+    if(curAges[0]!==0 && calcAgeContentScore(p.name, curAges) <= -2) return false;
     return true;
   }).sort((a,b)=>{
     const sa=calcAgeContentScore(a.name,curAges), sb=calcAgeContentScore(b.name,curAges);

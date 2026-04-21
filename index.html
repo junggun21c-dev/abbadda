@@ -453,8 +453,19 @@ async function fetchWeather(lat, lng) {
     } else {
       setWeatherState(2); // 비/눈/천둥
     }
+    currentTemp = temp;
+    // 극단 온도 배너 문구 오버라이드
+    if(temp < 5){
+      document.getElementById('bannerTitle').textContent='쌀쌀해요! 따뜻한 실내 코스를 추천해요';
+    } else if(temp >= 35){
+      document.getElementById('bannerTitle').textContent='폭염 주의! 시원한 실내로 가요';
+    }
     document.getElementById('bannerSub').textContent = `현재 ${temp}°C`;
-    showToast(`📍 현재 날씨 자동 적용 — ${temp}°C ${desc}`);
+    shownCourseIds=new Set(); renderCourses(true);
+    showToast(`📍 현재 날씨 자동 적용 — ${temp}°C`);
+    // 기온 때문에 제외된 코스 안내
+    const filteredOut = COURSES_DB.filter(c=>!isTempOk(c));
+    if(filteredOut.length>0) setTimeout(()=>showToast(`🌡️ ${temp}°C — 물놀이·수상레저 코스는 제외했어요`),1800);
     const badge2 = document.getElementById('gpsBadge');
     if(badge2){badge2.textContent=`📍 ${temp}°C`;badge2.classList.remove('pulse');badge2.classList.add('gps-live');}
   } catch(e) {
@@ -1100,6 +1111,7 @@ const weatherStates=[
 const ages=['5살','7살','9살','11살','13살'];
 const members=['2인(부부)','3인 가족','4인 가족','5인 이상'];
 let wIdx=0,aIdx=3,mIdx=1,catVal='전체',distMin=0,distMax=9999;
+let currentTemp=null;
 let favs=new Set();
 let currentCourseIdx=-1,pendingDeleteStepIdx=-1;
 let homeAddr = localStorage.getItem('homeAddr') || '출발지 미설정';
@@ -1360,14 +1372,23 @@ async function buildCourseWithEvent(eventId) {
   showToast(restaurant?`${restaurant.place_name} 등 실제 맛집을 찾았어요! 🎉`:'코스를 생성했어요! 📅');
 }
 
+function isTempOk(c){
+  if(currentTemp===null) return true;
+  const waterTags=['물놀이','수상레저','워터파크','해수욕','야외수영'];
+  const isWater = c.tags && c.tags.some(t=>waterTags.some(w=>t.includes(w)));
+  const isSummerOnly = c.season && c.season.length===1 && c.season[0]==='여름';
+  if(isWater || isSummerOnly) return currentTemp >= 20;
+  // 폭염(35°C 이상)엔 장시간 야외 활동 제한
+  if(currentTemp >= 35 && c.cat==='실외' && (c.driveMin||0)>=30) return false;
+  return true;
+}
+
 function getFilteredPool(){
   const w=weatherStates[wIdx].label;
-  // 노키즈존 포함 코스 제외 (timeline 내 noKids:true 장소가 하나라도 있으면 제외)
-  // 실내 필터 선택 시 날씨 무관 (실내는 맑든 비오든 갈 수 있음)
   const weatherOk = (c) => catVal === '실내' ? true : c.weather.includes(w);
   let pool=COURSES_DB.filter(c=>{
     if(c.timeline && c.timeline.some(s=>s.noKids)) return false;
-    return inDistRange(c.driveMin) && weatherOk(c);
+    return inDistRange(c.driveMin) && weatherOk(c) && isTempOk(c);
   });
   if(catVal==='실외') pool=pool.filter(c=>c.cat==='실외');
   else if(catVal==='실내') pool=pool.filter(c=>c.cat==='실내');
@@ -2333,7 +2354,7 @@ const DYNAMIC_CATEGORIES = [
   { kw:'생태공원',       cat:'실외', weather:['맑음','흐림'],      tags:['자연','아이추천'],        emoji:'🌿' },
   { kw:'테마파크',       cat:'실외', weather:['맑음','흐림'],      tags:['놀이','아이추천'],        emoji:'🎡' },
   { kw:'자연휴양림',     cat:'실외', weather:['맑음'],             tags:['자연','힐링'],           emoji:'⛺' },
-  { kw:'물놀이장',       cat:'실외', weather:['맑음'],             tags:['물놀이','여름'],          emoji:'💦' },
+  { kw:'물놀이장',       cat:'실외', weather:['맑음'],             tags:['물놀이','여름'],          emoji:'💦', minTemp:20 },
   { kw:'역사박물관',     cat:'실내', weather:['흐림','비','실내'], tags:['박물관','역사','교육'],   emoji:'🏺' },
   { kw:'유아숲체험원',   cat:'실외', weather:['맑음','흐림'],      tags:['자연','유아추천'],        emoji:'🌲' },
 ];
@@ -2353,10 +2374,13 @@ async function loadDynamicCourses() {
     sort: kakao.maps.services.SortBy.DISTANCE
   };
 
-  let pending = DYNAMIC_CATEGORIES.length;
+  const activeCats = DYNAMIC_CATEGORIES.filter(cat =>
+    !cat.minTemp || currentTemp === null || currentTemp >= cat.minTemp
+  );
+  let pending = activeCats.length;
   const bgColors = typeof EVENT_BGS !== 'undefined' ? EVENT_BGS : ['#FFF0E8','#E8F4FF','#E8FFE8','#FFF8E8'];
 
-  for (const cat of DYNAMIC_CATEGORIES) {
+  for (const cat of activeCats) {
     ps.keywordSearch(cat.kw, (data, status) => {
       if (status === kakao.maps.services.Status.OK) {
         const places = data.slice(0, 5);

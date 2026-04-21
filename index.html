@@ -19,21 +19,36 @@ body{font-family:'Noto Sans KR',sans-serif;background:#F5F6FA;min-height:100vh;d
 .hdr-rain{background:linear-gradient(160deg,#0d1b2a 0%,#1b3a5c 55%,#263238 100%)!important;}
 .hdr-snow{background:linear-gradient(160deg,#1a237e 0%,#3d7eb8 55%,#7ec8e3 100%)!important;}
 
-/* 맑음: 태양 글로우 */
-.hdr-clear::before{content:'';position:absolute;top:-10px;right:15px;width:72px;height:72px;background:radial-gradient(circle,rgba(255,235,59,.95) 0%,rgba(255,193,7,.45) 45%,transparent 70%);border-radius:50%;animation:sunPulse 4s ease-in-out infinite;pointer-events:none;}
+/* 맑음: 태양 글로우 — 크게 팽창 */
+.hdr-clear::before{content:'';position:absolute;top:-20px;right:5px;width:90px;height:90px;background:radial-gradient(circle,rgba(255,235,59,1) 0%,rgba(255,193,7,.55) 40%,transparent 70%);border-radius:50%;animation:sunPulse 2.5s ease-in-out infinite;pointer-events:none;}
+.hdr-clear::after{content:'';position:absolute;top:-30px;right:-5px;width:110px;height:110px;background:radial-gradient(circle,rgba(255,220,50,.25) 0%,transparent 65%);border-radius:50%;animation:sunHalo 2.5s ease-in-out infinite;pointer-events:none;}
 
-/* 흐림: 구름 오버레이 */
-.hdr-cloudy::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 20% 50%,rgba(255,255,255,.09) 0%,transparent 55%),radial-gradient(ellipse at 75% 25%,rgba(255,255,255,.07) 0%,transparent 45%);pointer-events:none;}
+/* 흐림: 구름이 천천히 흘러감 */
+.hdr-cloudy::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 20% 50%,rgba(255,255,255,.13) 0%,transparent 50%),radial-gradient(ellipse at 75% 25%,rgba(255,255,255,.1) 0%,transparent 40%);animation:cloudDrift 8s ease-in-out infinite alternate;pointer-events:none;}
 
-/* 비: 빗방울 스트라이프 */
-.hdr-rain::after{content:'';position:absolute;inset:0;background-image:repeating-linear-gradient(175deg,transparent 0px,transparent 3px,rgba(174,214,241,.2) 3px,rgba(174,214,241,.2) 4px),repeating-linear-gradient(175deg,transparent 0px,transparent 7px,rgba(174,214,241,.12) 7px,rgba(174,214,241,.12) 8px);animation:rainFall .38s linear infinite;pointer-events:none;}
+/* 비: 굵고 빠른 빗줄기 */
+.hdr-rain::after{content:'';position:absolute;inset:0;
+background-image:
+  repeating-linear-gradient(172deg,transparent 0px,transparent 2px,rgba(174,214,241,.35) 2px,rgba(174,214,241,.35) 3px),
+  repeating-linear-gradient(172deg,transparent 0px,transparent 5px,rgba(174,214,241,.2) 5px,rgba(174,214,241,.2) 6px),
+  repeating-linear-gradient(172deg,transparent 0px,transparent 9px,rgba(174,214,241,.12) 9px,rgba(174,214,241,.12) 10px);
+animation:rainFall .25s linear infinite;pointer-events:none;}
 
-/* 눈: 눈송이 닷 패턴 */
-.hdr-snow::after{content:'';position:absolute;inset:0;background-image:radial-gradient(circle,rgba(255,255,255,.9) 1px,transparent 1px),radial-gradient(circle,rgba(255,255,255,.6) 1.5px,transparent 1.5px),radial-gradient(circle,rgba(255,255,255,.4) 1px,transparent 1px);background-size:22px 28px,38px 48px,14px 18px;background-position:0 0,11px 9px,6px 4px;animation:snowFall 5s linear infinite;pointer-events:none;}
+/* 눈: 크고 선명한 눈송이 */
+.hdr-snow::after{content:'';position:absolute;inset:0;
+background-image:
+  radial-gradient(circle,rgba(255,255,255,.95) 2px,transparent 2px),
+  radial-gradient(circle,rgba(255,255,255,.7) 2.5px,transparent 2.5px),
+  radial-gradient(circle,rgba(255,255,255,.5) 1.5px,transparent 1.5px);
+background-size:20px 26px,35px 45px,13px 17px;
+background-position:0 0,10px 8px,5px 3px;
+animation:snowFall 3s linear infinite;pointer-events:none;}
 
-@keyframes sunPulse{0%,100%{transform:scale(1);opacity:.8;}50%{transform:scale(1.18);opacity:1;}}
-@keyframes rainFall{to{background-position:0 12px,3px 10px;}}
-@keyframes snowFall{to{background-position:3px 28px,14px 48px,8px 18px;}}
+@keyframes sunPulse{0%,100%{transform:scale(1);opacity:.85;}50%{transform:scale(1.45);opacity:1;}}
+@keyframes sunHalo{0%,100%{transform:scale(1);opacity:.4;}50%{transform:scale(1.6);opacity:.8;}}
+@keyframes cloudDrift{0%{background-position:0 0,0 0;}100%{background-position:15px 0,−10px 0;}}
+@keyframes rainFall{to{background-position:0 14px,4px 12px,8px 10px;}}
+@keyframes snowFall{to{background-position:4px 26px,13px 45px,7px 17px;}}
 .logo-main{font-size:24px;font-weight:700;letter-spacing:-0.5px;color:white;}
 .logo-sub{font-size:13px;opacity:0.9;font-weight:500;margin-top:2px;color:white;}
 .filter-row{display:flex;gap:7px;flex-shrink:0;scrollbar-width:none;}

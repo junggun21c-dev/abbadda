@@ -10,8 +10,30 @@
 html{overflow-y:scroll;scrollbar-gutter:stable;}
 body{font-family:'Noto Sans KR',sans-serif;background:#F5F6FA;min-height:100vh;display:flex;justify-content:center;}
 .app{width:100%;max-width:430px;background:#F5F6FA;min-height:100vh;padding-bottom:80px;}
-.header{background:linear-gradient(135deg,#6C63FF 0%,#a855f7 100%);padding:1.2rem 1rem 1rem;border-radius:0 0 28px 28px;}
-.header-top{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+.header{background:linear-gradient(135deg,#6C63FF 0%,#a855f7 100%);padding:1.2rem 1rem 1rem;border-radius:0 0 28px 28px;position:relative;overflow:hidden;transition:background 1.5s ease;}
+.header-top{display:flex;align-items:center;justify-content:space-between;gap:10px;position:relative;z-index:1;}
+
+/* 날씨별 헤더 배경 */
+.hdr-clear{background:linear-gradient(160deg,#1565c0 0%,#1e88e5 55%,#f57c00 100%)!important;}
+.hdr-cloudy{background:linear-gradient(160deg,#37474f 0%,#546e7a 55%,#607d8b 100%)!important;}
+.hdr-rain{background:linear-gradient(160deg,#0d1b2a 0%,#1b3a5c 55%,#263238 100%)!important;}
+.hdr-snow{background:linear-gradient(160deg,#1a237e 0%,#3d7eb8 55%,#7ec8e3 100%)!important;}
+
+/* 맑음: 태양 글로우 */
+.hdr-clear::before{content:'';position:absolute;top:-10px;right:15px;width:72px;height:72px;background:radial-gradient(circle,rgba(255,235,59,.95) 0%,rgba(255,193,7,.45) 45%,transparent 70%);border-radius:50%;animation:sunPulse 4s ease-in-out infinite;pointer-events:none;}
+
+/* 흐림: 구름 오버레이 */
+.hdr-cloudy::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 20% 50%,rgba(255,255,255,.09) 0%,transparent 55%),radial-gradient(ellipse at 75% 25%,rgba(255,255,255,.07) 0%,transparent 45%);pointer-events:none;}
+
+/* 비: 빗방울 스트라이프 */
+.hdr-rain::after{content:'';position:absolute;inset:0;background-image:repeating-linear-gradient(175deg,transparent 0px,transparent 3px,rgba(174,214,241,.2) 3px,rgba(174,214,241,.2) 4px),repeating-linear-gradient(175deg,transparent 0px,transparent 7px,rgba(174,214,241,.12) 7px,rgba(174,214,241,.12) 8px);animation:rainFall .38s linear infinite;pointer-events:none;}
+
+/* 눈: 눈송이 닷 패턴 */
+.hdr-snow::after{content:'';position:absolute;inset:0;background-image:radial-gradient(circle,rgba(255,255,255,.9) 1px,transparent 1px),radial-gradient(circle,rgba(255,255,255,.6) 1.5px,transparent 1.5px),radial-gradient(circle,rgba(255,255,255,.4) 1px,transparent 1px);background-size:22px 28px,38px 48px,14px 18px;background-position:0 0,11px 9px,6px 4px;animation:snowFall 5s linear infinite;pointer-events:none;}
+
+@keyframes sunPulse{0%,100%{transform:scale(1);opacity:.8;}50%{transform:scale(1.18);opacity:1;}}
+@keyframes rainFall{to{background-position:0 12px,3px 10px;}}
+@keyframes snowFall{to{background-position:3px 28px,14px 48px,8px 18px;}}
 .logo-main{font-size:24px;font-weight:700;letter-spacing:-0.5px;color:white;}
 .logo-sub{font-size:13px;opacity:0.9;font-weight:500;margin-top:2px;color:white;}
 .filter-row{display:flex;gap:7px;flex-shrink:0;scrollbar-width:none;}
@@ -433,6 +455,11 @@ function setWeatherState(idx) {
   const w = weatherStates[idx];
   document.getElementById('bannerIcon').textContent = w.bIcon;
   document.getElementById('bannerTitle').textContent = w.banner;
+  const hdr = document.querySelector('.header');
+  if(hdr){
+    hdr.classList.remove('hdr-clear','hdr-cloudy','hdr-rain','hdr-snow');
+    if(w.headerClass) hdr.classList.add(w.headerClass);
+  }
   shownCourseIds = new Set();
 }
 
@@ -451,8 +478,10 @@ async function fetchWeather(lat, lng) {
       setWeatherState(0); // 맑음
     } else if (id >= 801 && id <= 804) {
       setWeatherState(1); // 흐림
+    } else if (id >= 600 && id <= 622) {
+      setWeatherState(3); // 눈
     } else {
-      setWeatherState(2); // 비/눈/천둥
+      setWeatherState(2); // 비/천둥
     }
     currentTemp = temp;
     // 극단 온도 배너 문구 오버라이드
@@ -1105,9 +1134,10 @@ function getEventsByDist(){ return EVENTS_DB.filter(e=>{
 
 /* ─── 상태 ─── */
 const weatherStates=[
-  {icon:'☀️',label:'맑음',cls:'weather-sunny',banner:'오늘 맑음, 나들이 딱이에요!',bIcon:'☀️'},
-  {icon:'⛅',label:'흐림',cls:'weather-cloudy',banner:'흐린 날도 충분히 즐거워요!',bIcon:'⛅'},
-  {icon:'🌧️',label:'비',cls:'weather-rainy',banner:'비 오는 날엔 실내 코스로!',bIcon:'🌧️'},
+  {icon:'☀️',label:'맑음',cls:'weather-sunny',banner:'오늘 맑음, 나들이 딱이에요!',bIcon:'☀️',headerClass:'hdr-clear'},
+  {icon:'⛅',label:'흐림',cls:'weather-cloudy',banner:'흐린 날도 충분히 즐거워요!',bIcon:'⛅',headerClass:'hdr-cloudy'},
+  {icon:'🌧️',label:'비',cls:'weather-rainy',banner:'비 오는 날엔 실내 코스로!',bIcon:'🌧️',headerClass:'hdr-rain'},
+  {icon:'❄️',label:'눈',cls:'weather-snowy',banner:'눈 오는 날엔 실내에서 따뜻하게!',bIcon:'❄️',headerClass:'hdr-snow'},
 ];
 const ages=['5살','7살','9살','11살','13살'];
 const members=['2인(부부)','3인 가족','4인 가족','5인 이상'];
@@ -1146,7 +1176,7 @@ function inDistRange(d){
 }
 
 function cycleWeather(){
-  wIdx=(wIdx+1)%3; const w=weatherStates[wIdx];
+  wIdx=(wIdx+1)%weatherStates.length; const w=weatherStates[wIdx];
   document.getElementById('bannerIcon').textContent=w.bIcon;
   document.getElementById('bannerTitle').textContent=w.banner;
   shownCourseIds=new Set(); renderCourses(true);
@@ -1433,8 +1463,10 @@ function isSeasonOpen(c){
 }
 
 function getFilteredPool(){
-  const w=weatherStates[wIdx].label;
-  const weatherOk = (c) => catVal === '실내' ? true : c.weather.includes(w);
+  const wLabel=weatherStates[wIdx].label;
+  // 눈은 비와 동일하게 처리 (실내 코스 추천)
+  const wEff = wLabel==='눈' ? '비' : wLabel;
+  const weatherOk = (c) => catVal === '실내' ? true : c.weather.includes(wEff);
   const ages=getChildAges();
   // 영아(1-2)·유아(3-5)·초등저학년(6-9): 주차장 있는 곳만 (parking:false 명시된 곳 제외)
   const needParking = ages[0] > 0 && ages[0] <= 9;

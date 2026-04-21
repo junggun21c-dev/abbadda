@@ -2438,14 +2438,14 @@ async function enrichDynamicCourse(c) {
   ]);
   const r = restaurants && restaurants[0];
   const cf = cafes && cafes[0];
-  if (r) {
+  if (r && c.timeline[1] && c.timeline[1].needsSearch) {
     const rLat = parseFloat(r.y), rLng = parseFloat(r.x);
     PLACE_COORDS[r.place_name] = { lat:rLat, lng:rLng };
     c.timeline[1] = { type:'food', place:r.place_name, lat:rLat, lng:rLng,
       desc:`📍 ${r.address_name}${r.phone?' · ☎ '+r.phone:''}`, kakaoUrl:r.place_url };
     c.stops[1] = r.place_name;
   }
-  if (cf) {
+  if (cf && c.timeline[2] && c.timeline[2].needsSearch) {
     const cLat = parseFloat(cf.y), cLng = parseFloat(cf.x);
     PLACE_COORDS[cf.place_name] = { lat:cLat, lng:cLng };
     c.timeline[2] = { type:'cafe', place:cf.place_name, lat:cLat, lng:cLng,
@@ -2473,13 +2473,23 @@ function toggleSaveRoute(idx){
 /* ─── URL 링크 복사 ─── */
 function copyRouteUrl(courseId){
   const baseUrl = window.location.href.split('?')[0];
-  let shareUrl = courseId >= 9000
-    ? baseUrl + '?event=' + (courseId - 9000)
-    : baseUrl + '?course=' + courseId;
-  // 변경된 스텝이 있으면 URL에 인코딩해서 포함
+  const c = COURSES_DB.find(x => x.id === courseId);
+  if(!c) return;
   const mods = _courseMods[courseId];
-  if(mods && Object.keys(mods).length > 0){
-    shareUrl += '&m=' + encodeURIComponent(JSON.stringify(mods));
+  const mParam = (mods && Object.keys(mods).length > 0)
+    ? '&m=' + encodeURIComponent(JSON.stringify(mods)) : '';
+  let shareUrl;
+  if(courseId >= 9000){
+    // 행사 코스: ?event=<eventId>
+    shareUrl = baseUrl + '?event=' + (courseId - 9000) + mParam;
+  } else if(c.isDynamic){
+    // 동적 코스: _dynId가 매 세션마다 달라지므로 카카오 URL로 식별
+    const kakaoUrl = c.timeline[0] && c.timeline[0].kakaoUrl;
+    if(!kakaoUrl){ showToast('이 코스는 링크 공유가 되지 않아요 😅'); return; }
+    shareUrl = baseUrl + '?dyn=' + encodeURIComponent(kakaoUrl) + mParam;
+  } else {
+    // 정적 코스: id가 안정적
+    shareUrl = baseUrl + '?course=' + courseId + mParam;
   }
   const btn = document.getElementById('copyUrlBtn');
 
@@ -2515,6 +2525,8 @@ function applyUrlMods(c, mStr){
       if(c.stops) c.stops[parseInt(si)] = mod.name;
       PLACE_COORDS[mod.name] = { lat:mod.lat, lng:mod.lng };
     });
+    // 동적 코스는 enrichDynamicCourse가 덮어쓰지 않도록 차단
+    if(c.isDynamic) c.needsEnrichment = false;
   }catch(e){}
 }
 
@@ -2533,6 +2545,30 @@ function checkUrlCourse(){
       if(mStr) applyUrlMods(COURSES_DB[idx], mStr);
       setTimeout(()=>openCourse(idx), 600);
     }
+  }catch(e){}
+}
+
+/* ─── URL ?dyn= 파라미터로 동적 코스 오픈 ─── */
+function checkUrlDyn(){
+  try{
+    const p = new URLSearchParams(window.location.search);
+    const dynUrl = p.get('dyn');
+    if(!dynUrl) return;
+    const mStr = p.get('m');
+    let attempts = 0;
+    const tryOpen = () => {
+      const idx = COURSES_DB.findIndex(c =>
+        c.isDynamic && c.timeline && c.timeline[0] && c.timeline[0].kakaoUrl === dynUrl
+      );
+      if(idx >= 0){
+        if(mStr) applyUrlMods(COURSES_DB[idx], mStr);
+        else COURSES_DB[idx].needsEnrichment = false;
+        setTimeout(()=>openCourse(idx), 400);
+      } else if(attempts++ < 12){
+        setTimeout(tryOpen, 1000);
+      }
+    };
+    setTimeout(tryOpen, 4000); // 동적 코스 로드 대기
   }catch(e){}
 }
 
@@ -2571,7 +2607,7 @@ renderCourses(false);
 initHomeLabel();
 loadEventsFromTourAPI();
 initLocation();
-setTimeout(() => { loadKakaoSDK(); checkUrlCourse(); checkUrlEvent(); }, 1500);
+setTimeout(() => { loadKakaoSDK(); checkUrlCourse(); checkUrlEvent(); checkUrlDyn(); }, 1500);
 setTimeout(() => { loadDynamicCourses(); }, 4000); // 위치·카카오 SDK 준비 후 동적 코스 로드
 </script>
 </body>

@@ -1403,8 +1403,12 @@ function isSeasonOpen(c){
 function getFilteredPool(){
   const w=weatherStates[wIdx].label;
   const weatherOk = (c) => catVal === '실내' ? true : c.weather.includes(w);
+  const ages=getChildAges();
+  // 영아(1-2)·유아(3-5)·초등저학년(6-9): 주차장 있는 곳만 (parking:false 명시된 곳 제외)
+  const needParking = ages[0] > 0 && ages[0] <= 9;
   let pool=COURSES_DB.filter(c=>{
     if(c.timeline && c.timeline.some(s=>s.noKids)) return false;
+    if(needParking && c.parking===false) return false;
     return inDistRange(c.driveMin) && weatherOk(c) && isTempOk(c) && isSeasonOpen(c);
   });
   if(catVal==='실외') pool=pool.filter(c=>c.cat==='실외');
@@ -1412,7 +1416,6 @@ function getFilteredPool(){
   else if(['봄','여름','가을','겨울'].includes(catVal)) pool=pool.filter(c=>c.season&&c.season.includes(catVal));
   else if(catVal!=='전체') pool=pool.filter(c=>c.tags.some(t=>t.includes(catVal)));
   // 나이 기반 적합도 점수로 정렬 (거리 정렬보다 우선)
-  const ages=getChildAges();
   if(ages.length>0){
     pool=pool.slice().sort((a,b)=>{
       const sa=calcAgeScore(a,ages), sb=calcAgeScore(b,ages);

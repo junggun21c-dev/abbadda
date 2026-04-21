@@ -262,6 +262,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:#F5F6FA;min-height:100vh;d
     <div class="setting-pill-wrap">
       <span>👦</span>
       <select id="ageSelect" onchange="onAgeChange(this.value)">
+        <option value="0">나이무관</option>
         <option value="1">1살</option>
         <option value="2">2살</option>
         <option value="3">3살</option>
@@ -1158,7 +1159,9 @@ function onChildCountChange(val){
   updateSub(); renderCourses(true); renderEvents();
 }
 function getChildAges(){
-  const a1=parseInt((document.getElementById('ageSelect')||{value:'11'}).value)||11;
+  const raw=(document.getElementById('ageSelect')||{value:'11'}).value;
+  const a1=parseInt(raw);
+  if(isNaN(a1)||raw==='0') return [0]; // 나이무관
   const cnt=parseInt((document.getElementById('childCountSelect')||{value:'1'}).value)||1;
   if(cnt<2) return [a1];
   const a2=parseInt((document.getElementById('age2Select')||{value:'5'}).value)||5;
@@ -1166,6 +1169,7 @@ function getChildAges(){
 }
 function getAgeLabel(){
   const ages=getChildAges();
+  if(ages[0]===0) return '나이무관';
   return ages.map(a=>a>=13?'13살 이상':a+'살').join('/');
 }
 function getMemberLabel(){
@@ -1175,6 +1179,7 @@ function getMemberLabel(){
 
 /* 나이대별 코스 적합도 점수 */
 function calcAgeScore(course, ages){
+  if(ages[0]===0) return 0; // 나이무관: 거리순 정렬만
   let total=0;
   for(const age of ages){
     let s=0;

@@ -1330,8 +1330,8 @@ async function buildCourseWithEvent(eventId) {
   let restaurant = null, cafe = null;
   if (loaded) {
     const [restaurants, cafes] = await Promise.all([
-      searchNearbyPlaces('맛집 식당', coords.lat, coords.lng),
-      searchNearbyPlaces('카페', coords.lat, coords.lng),
+      searchNearbyPlaces('FD6', coords.lat, coords.lng),
+      searchNearbyPlaces('CE7', coords.lat, coords.lng),
     ]);
     restaurant = restaurants && restaurants[0];
     cafe = cafes && cafes[0];
@@ -2010,15 +2010,17 @@ const PLACE_COORDS = {
   '연천 한우·캠핑 식당':{lat:38.0080,lng:127.0510},
 };
 
-function searchNearbyPlaces(keyword, lat, lng) {
+// categoryCode: 'FD6' = 음식점, 'CE7' = 카페
+// keywordSearch 대신 categorySearch 사용 → 이름에 '맛집' 포함 여부 무관하게 실제 업종으로 검색
+function searchNearbyPlaces(categoryCode, lat, lng) {
   return new Promise((resolve) => {
     if (!kakaoReady || typeof kakao === 'undefined') { resolve(null); return; }
     try {
       const ps = new kakao.maps.services.Places();
-      ps.keywordSearch(keyword, (data, status) => {
-        if (status === kakao.maps.services.Status.OK && data.length > 0) resolve(data.slice(0,3));
+      ps.categorySearch(categoryCode, (data, status) => {
+        if (status === kakao.maps.services.Status.OK && data.length > 0) resolve(data.slice(0,5));
         else resolve(null);
-      }, { location: new kakao.maps.LatLng(lat, lng), radius:1500, sort:kakao.maps.services.SortBy.ACCURACY });
+      }, { location: new kakao.maps.LatLng(lat, lng), radius: 800, sort: kakao.maps.services.SortBy.DISTANCE });
     } catch(err) { resolve(null); }
   });
 }
@@ -2214,8 +2216,8 @@ async function buildCourseWithPopup(popupId){
   let restaurant=null, cafe=null;
   if(loaded && p.lat){
     const [restaurants,cafes]=await Promise.all([
-      searchNearbyPlaces('맛집 식당',pCoords.lat,pCoords.lng),
-      searchNearbyPlaces('카페',pCoords.lat,pCoords.lng),
+      searchNearbyPlaces('FD6',pCoords.lat,pCoords.lng),
+      searchNearbyPlaces('CE7',pCoords.lat,pCoords.lng),
     ]);
     restaurant=restaurants&&restaurants[0];
     cafe=cafes&&cafes[0];
@@ -2355,8 +2357,8 @@ async function enrichDynamicCourse(c) {
   const main = c.timeline.find(s => s.type === 'place');
   if (!main || !main.lat) return;
   const [restaurants, cafes] = await Promise.all([
-    searchNearbyPlaces('맛집 식당', main.lat, main.lng),
-    searchNearbyPlaces('카페', main.lat, main.lng)
+    searchNearbyPlaces('FD6', main.lat, main.lng),
+    searchNearbyPlaces('CE7', main.lat, main.lng)
   ]);
   const r = restaurants && restaurants[0];
   const cf = cafes && cafes[0];

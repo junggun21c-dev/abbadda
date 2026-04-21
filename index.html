@@ -1372,14 +1372,26 @@ async function buildCourseWithEvent(eventId) {
   showToast(restaurant?`${restaurant.place_name} 등 실제 맛집을 찾았어요! 🎉`:'코스를 생성했어요! 📅');
 }
 
+// 날씨/기온 기반 필터
 function isTempOk(c){
   if(currentTemp===null) return true;
   const waterTags=['물놀이','수상레저','워터파크','해수욕','야외수영'];
   const isWater = c.tags && c.tags.some(t=>waterTags.some(w=>t.includes(w)));
   const isSummerOnly = c.season && c.season.length===1 && c.season[0]==='여름';
   if(isWater || isSummerOnly) return currentTemp >= 20;
-  // 폭염(35°C 이상)엔 장시간 야외 활동 제한
   if(currentTemp >= 35 && c.cat==='실외' && (c.driveMin||0)>=30) return false;
+  return true;
+}
+
+// 현재 날짜 기반 운영 시즌 체크 (계절 한정 시설 제외)
+// - 물놀이·수상레저·야외수영: 6~8월만 운영
+// - 여름 전용(season=['여름']): 6~8월만 노출
+function isSeasonOpen(c){
+  const m = new Date().getMonth() + 1; // 1~12
+  const waterTags=['물놀이','수상레저','워터파크','해수욕','야외수영'];
+  const isWater = c.tags && c.tags.some(t=>waterTags.some(w=>t.includes(w)));
+  const isSummerOnly = c.season && c.season.length===1 && c.season[0]==='여름';
+  if(isWater || isSummerOnly) return m >= 6 && m <= 8;
   return true;
 }
 
@@ -1388,7 +1400,7 @@ function getFilteredPool(){
   const weatherOk = (c) => catVal === '실내' ? true : c.weather.includes(w);
   let pool=COURSES_DB.filter(c=>{
     if(c.timeline && c.timeline.some(s=>s.noKids)) return false;
-    return inDistRange(c.driveMin) && weatherOk(c) && isTempOk(c);
+    return inDistRange(c.driveMin) && weatherOk(c) && isTempOk(c) && isSeasonOpen(c);
   });
   if(catVal==='실외') pool=pool.filter(c=>c.cat==='실외');
   else if(catVal==='실내') pool=pool.filter(c=>c.cat==='실내');
@@ -2354,7 +2366,7 @@ const DYNAMIC_CATEGORIES = [
   { kw:'생태공원',       cat:'실외', weather:['맑음','흐림'],      tags:['자연','아이추천'],        emoji:'🌿' },
   { kw:'테마파크',       cat:'실외', weather:['맑음','흐림'],      tags:['놀이','아이추천'],        emoji:'🎡' },
   { kw:'자연휴양림',     cat:'실외', weather:['맑음'],             tags:['자연','힐링'],           emoji:'⛺' },
-  { kw:'물놀이장',       cat:'실외', weather:['맑음'],             tags:['물놀이','여름'],          emoji:'💦', minTemp:20 },
+  { kw:'물놀이장',       cat:'실외', weather:['맑음'],             tags:['물놀이','여름'],          emoji:'💦', minTemp:20, operationMonths:[6,7,8] },
   { kw:'역사박물관',     cat:'실내', weather:['흐림','비','실내'], tags:['박물관','역사','교육'],   emoji:'🏺' },
   { kw:'유아숲체험원',   cat:'실외', weather:['맑음','흐림'],      tags:['자연','유아추천'],        emoji:'🌲' },
 ];
@@ -2374,9 +2386,12 @@ async function loadDynamicCourses() {
     sort: kakao.maps.services.SortBy.DISTANCE
   };
 
-  const activeCats = DYNAMIC_CATEGORIES.filter(cat =>
-    !cat.minTemp || currentTemp === null || currentTemp >= cat.minTemp
-  );
+  const curMonth = new Date().getMonth() + 1;
+  const activeCats = DYNAMIC_CATEGORIES.filter(cat => {
+    if(cat.operationMonths && !cat.operationMonths.includes(curMonth)) return false;
+    if(cat.minTemp && currentTemp !== null && currentTemp < cat.minTemp) return false;
+    return true;
+  });
   let pending = activeCats.length;
   const bgColors = typeof EVENT_BGS !== 'undefined' ? EVENT_BGS : ['#FFF0E8','#E8F4FF','#E8FFE8','#FFF8E8'];
 

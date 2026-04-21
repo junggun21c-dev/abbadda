@@ -2401,7 +2401,8 @@ async function loadDynamicCourses() {
   for (const cat of activeCats) {
     ps.keywordSearch(cat.kw, (data, status) => {
       if (status === kakao.maps.services.Status.OK) {
-        const places = data.slice(0, 5);
+        // 전화번호 없는 곳 제외 (관리회사·폐업·미운영 시설 차단)
+        const places = data.filter(p => p.phone && p.phone.trim()).slice(0, 5);
         for (const place of places) {
           const pLat = parseFloat(place.y), pLng = parseFloat(place.x);
           // 동일 카카오 URL 동적 코스만 중복 제거 (정적 코스와는 중복 허용)

@@ -1336,19 +1336,28 @@ async function buildCourseWithEvent(eventId) {
     restaurant = restaurants && restaurants[0];
     cafe = cafes && cafes[0];
   }
+  const evtLat = e.lat || coords.lat;
+  const evtLng = e.lng || coords.lng;
+  const rLat = restaurant ? parseFloat(restaurant.y) : null;
+  const rLng = restaurant ? parseFloat(restaurant.x) : null;
+  const cLat = cafe ? parseFloat(cafe.y) : null;
+  const cLng = cafe ? parseFloat(cafe.x) : null;
   const tempCourse = {
     id: 9000+eventId, emoji:e.emoji, bg:e.bg,
     title:`${e.name} 당일 코스`, region:e.loc,
     driveMin:e.distMin, drive:`${e.distMin}분`, total:'6시간', rating:null,
     cat:'실외', weather:['맑음','흐림','비'], tags:['행사','축제'], cost:'별도확인',
+    destLat:evtLat, destLng:evtLng,
     stops:[e.name, restaurant?restaurant.place_name:'주변 식당', cafe?cafe.place_name:'주변 카페'],
     transit:[{km:0.5,min:5},{km:0.8,min:4}],
     timeline:[
-      {type:'place',place:e.name,desc:`📅 ${e.date} | 📍 ${e.loc}`},
+      {type:'place',place:e.name,lat:evtLat,lng:evtLng,desc:`📅 ${e.date} | 📍 ${e.loc}`},
       {type:'food',place:restaurant?restaurant.place_name:'행사장 주변 식당',
+       lat:rLat,lng:rLng,
        desc:restaurant?`📍 ${restaurant.address_name}${restaurant.phone?' · ☎ '+restaurant.phone:''}`:'행사장 근처 식당',
        kakaoUrl:restaurant?restaurant.place_url:null},
       {type:'cafe',place:cafe?cafe.place_name:'행사장 주변 카페',
+       lat:cLat,lng:cLng,
        desc:cafe?`📍 ${cafe.address_name}${cafe.phone?' · ☎ '+cafe.phone:''}`:'행사장 근처 카페',
        kakaoUrl:cafe?cafe.place_url:null}
     ]
@@ -1550,7 +1559,7 @@ ${i===c.timeline.length-1?'':''}`;
       <div class="home-info"><div class="home-label end">도착지 (귀가)</div><div class="home-addr">${homeAddr}</div></div>
     </div>
   </div>
-  <div class="route-btn-row"><button class="save-route-btn${favs.has(currentCourseIdx)?' saved':''}" id="saveRouteBtn" onclick="toggleSaveRoute(${currentCourseIdx})">${favs.has(currentCourseIdx)?'❤️ 찜됨':'🤍 찜하기'}</button><button class="url-copy-btn" onclick="copyRouteUrl(${currentCourseIdx})" id="copyUrlBtn">🔗 링크 복사</button></div>`;
+  <div class="route-btn-row"><button class="save-route-btn${favs.has(currentCourseIdx)?' saved':''}" id="saveRouteBtn" onclick="toggleSaveRoute(${currentCourseIdx})">${favs.has(currentCourseIdx)?'❤️ 찜됨':'🤍 찜하기'}</button><button class="url-copy-btn" onclick="copyRouteUrl(${c.id})" id="copyUrlBtn">🔗 링크 복사</button></div>`;
 
   document.getElementById('modalContent').innerHTML=html;
   renderCourseMap(c);
@@ -2336,7 +2345,7 @@ async function loadDynamicCourses() {
           });
         }
       }
-      if (--pending === 0) renderCourses(false);
+      if (--pending === 0) { renderCourses(false); checkUrlCourse(); }
     }, opts);
   }
 }
@@ -2384,13 +2393,11 @@ function toggleSaveRoute(idx){
 }
 
 /* ─── URL 링크 복사 ─── */
-function copyRouteUrl(idx){
-  const c = COURSES_DB[idx];
-  if(!c) return;
+function copyRouteUrl(courseId){
   const baseUrl = window.location.href.split('?')[0];
-  const shareUrl = baseUrl + '?course=' + idx;
+  const shareUrl = baseUrl + '?course=' + courseId;
   const btn = document.getElementById('copyUrlBtn');
-  
+
   if(navigator.clipboard && navigator.clipboard.writeText){
     navigator.clipboard.writeText(shareUrl).then(()=>{
       showToast('링크가 복사됐어요! 🔗');
@@ -2412,12 +2419,17 @@ function fallbackCopy(url,btn){
 }
 
 /* ─── URL 파라미터로 코스 자동 오픈 ─── */
+let _urlCourseOpened = false;
 function checkUrlCourse(){
+  if(_urlCourseOpened) return;
   try{
     const p = new URLSearchParams(window.location.search);
-    const ci = parseInt(p.get('course'));
-    if(!isNaN(ci) && ci >= 0 && ci < COURSES_DB.length){
-      setTimeout(()=>openCourse(ci), 600);
+    const cid = parseInt(p.get('course'));
+    if(isNaN(cid)) return;
+    const idx = COURSES_DB.findIndex(c => c.id === cid);
+    if(idx >= 0){
+      _urlCourseOpened = true;
+      setTimeout(()=>openCourse(idx), 600);
     }
   }catch(e){}
 }

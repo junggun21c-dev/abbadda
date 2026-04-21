@@ -11,14 +11,12 @@ html{overflow-y:scroll;scrollbar-gutter:stable;}
 body{font-family:'Noto Sans KR',sans-serif;background:#F5F6FA;min-height:100vh;display:flex;justify-content:center;}
 .app{width:100%;max-width:430px;background:#F5F6FA;min-height:100vh;padding-bottom:80px;}
 .header{background:linear-gradient(135deg,#6C63FF 0%,#a855f7 100%);padding:1.2rem 1rem 1rem;border-radius:0 0 28px 28px;}
-.header-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;}
+.header-top{display:flex;align-items:center;justify-content:space-between;gap:10px;}
 .logo-main{font-size:24px;font-weight:700;letter-spacing:-0.5px;color:white;}
 .logo-sub{font-size:13px;opacity:0.9;font-weight:500;margin-top:2px;color:white;}
-.logo-desc{font-size:12px;opacity:0.75;font-weight:400;margin-top:3px;color:white;letter-spacing:-0.2px;}
-.avatar{width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,0.25);display:flex;align-items:center;justify-content:center;font-size:18px;cursor:pointer;}
-.filter-row{display:flex;gap:7px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none;}
+.filter-row{display:flex;gap:7px;flex-shrink:0;scrollbar-width:none;}
 .filter-row::-webkit-scrollbar{display:none;}
-.chip{background:rgba(255,255,255,0.18);border:1px solid rgba(255,255,255,0.3);border-radius:20px;padding:6px 15px;font-size:13px;color:white;white-space:nowrap;cursor:pointer;transition:all 0.15s;}
+.chip{background:rgba(255,255,255,0.18);border:1px solid rgba(255,255,255,0.3);border-radius:20px;padding:6px 13px;font-size:13px;color:white;white-space:nowrap;cursor:pointer;transition:all 0.15s;}
 .chip.active{background:white;color:#6C63FF;font-weight:700;}
 .settings-bar{display:flex;gap:8px;padding:0.9rem 1rem 0;flex-wrap:wrap;}
 .setting-pill{display:flex;align-items:center;gap:5px;background:white;border:1px solid #E8E4DC;border-radius:20px;padding:7px 13px;font-size:13px;color:#555;cursor:pointer;transition:all 0.15s;}
@@ -28,9 +26,9 @@ body{font-family:'Noto Sans KR',sans-serif;background:#F5F6FA;min-height:100vh;d
 .weather-rainy{background:#EEF2FF;border-color:#8899DD;color:#334488;}
 .home-pill{background:#F0FFF4;border-color:#7DC894;color:#2D6A4F;}
 .section{padding:0.9rem 1rem 0;}
-.today-banner{background:white;border:1px solid #C4B5FD;border-radius:16px;padding:1rem;margin-bottom:0.8rem;display:flex;align-items:center;gap:12px;box-shadow:0 2px 8px rgba(255,107,53,0.08);}
-.today-text strong{color:#222;font-weight:700;font-size:14px;display:block;margin-bottom:2px;}
-.today-text span{font-size:12px;color:#888;line-height:1.5;}
+.today-banner{background:white;border:1px solid #C4B5FD;border-radius:16px;padding:0.7rem 1rem;margin-bottom:0.8rem;display:flex;align-items:center;gap:8px;box-shadow:0 2px 8px rgba(108,99,255,0.08);}
+.today-banner strong{color:#222;font-weight:700;font-size:14px;flex:1;}
+.today-banner .banner-temp{font-size:12px;color:#888;white-space:nowrap;}
 .dist-tabs{display:flex;gap:6px;margin-bottom:0.9rem;}
 .dist-tab{flex:1;padding:7px 2px;border:1px solid #E8E4DC;border-radius:10px;font-size:11px;line-height:1.4;text-align:center;cursor:pointer;color:#888;background:white;transition:all 0.15s;font-family:'Noto Sans KR',sans-serif;word-break:keep-all;}
 .dist-tab.active{background:#6C63FF;color:white;border-color:#6C63FF;font-weight:700;}
@@ -249,25 +247,17 @@ body{font-family:'Noto Sans KR',sans-serif;background:#F5F6FA;min-height:100vh;d
 <div class="app">
   <div class="header">
     <div class="header-top">
-      <div><div class="logo-main">아빠따라</div><div class="logo-sub">아빠만 따라오면 돼! <span class="gps-badge pulse" id="gpsBadge">📍 위치 감지 중</span></div><div class="logo-desc">반복되는 고민은 노화를 앞당길뿐!</div></div>
-      <div class="avatar">👨</div>
-    </div>
-    <div class="filter-row" id="catFilter">
-      <div class="chip active" onclick="setFilter(this,'전체')">전체</div>
-      <div class="chip" onclick="setFilter(this,'실외')">실외</div>
-      <div class="chip" onclick="setFilter(this,'실내')">실내</div>
+      <div><div class="logo-main">아빠따라</div><div class="logo-sub">아빠만 따라오면 돼! <span class="gps-badge pulse" id="gpsBadge">📍 위치 감지 중</span></div></div>
+      <div class="filter-row" id="catFilter">
+        <div class="chip active" onclick="setFilter(this,'전체')">전체</div>
+        <div class="chip" onclick="setFilter(this,'실외')">실외</div>
+        <div class="chip" onclick="setFilter(this,'실내')">실내</div>
+      </div>
     </div>
   </div>
   <div class="settings-bar" id="settingsBar">
-    <div class="setting-pill weather-sunny" id="weatherPill" onclick="cycleWeather()">
-      <span id="weatherIcon">☀️</span><span id="weatherLabel">맑음</span>
-    </div>
-    <div class="setting-pill-wrap">
-      <span>👶</span>
-      <select id="childCountSelect" onchange="onChildCountChange(this.value)">
-        <option value="1" selected>자녀 1명</option>
-        <option value="2">자녀 2명+</option>
-      </select>
+    <div class="loc-pill detecting" id="locPill" onclick="openHomeModal()">
+      <span>📍</span><span id="homeLabel">감지 중...</span>
     </div>
     <div class="setting-pill-wrap">
       <span>👦</span>
@@ -305,17 +295,12 @@ body{font-family:'Noto Sans KR',sans-serif;background:#F5F6FA;min-height:100vh;d
         <option value="13">13살 이상</option>
       </select>
     </div>
-    <div class="loc-pill detecting" id="locPill" onclick="openHomeModal()">
-      <span>📍</span><span id="homeLabel">감지 중...</span>
-    </div>
   </div>
   <div class="section" id="mainSection">
     <div class="today-banner">
-      <div style="font-size:26px" id="bannerIcon">☀️</div>
-      <div class="today-text">
-        <strong id="bannerTitle">오늘 맑음, 나들이 딱이에요!</strong>
-        <span id="bannerSub">서울/경기 · 11살 아이 · 3인 가족 · 당일치기</span>
-      </div>
+      <span id="bannerIcon" style="font-size:20px">☀️</span>
+      <strong id="bannerTitle">오늘 맑음, 나들이 딱이에요!</strong>
+      <span id="bannerSub" class="banner-temp"></span>
     </div>
     <div class="dist-tabs">
       <div class="dist-tab active" onclick="setDist(this,0,9999)">전체</div>
@@ -445,10 +430,6 @@ function recalcDistances() {
 function setWeatherState(idx) {
   wIdx = idx;
   const w = weatherStates[idx];
-  const pill = document.getElementById('weatherPill');
-  pill.className = 'setting-pill ' + w.cls;
-  document.getElementById('weatherIcon').textContent = w.icon;
-  document.getElementById('weatherLabel').textContent = w.label;
   document.getElementById('bannerIcon').textContent = w.bIcon;
   document.getElementById('bannerTitle').textContent = w.banner;
   shownCourseIds = new Set();
@@ -472,8 +453,7 @@ async function fetchWeather(lat, lng) {
     } else {
       setWeatherState(2); // 비/눈/천둥
     }
-    document.getElementById('bannerSub').textContent =
-      `현재 ${temp}°C · ${desc} · ${ages[aIdx]} 아이 · ${members[mIdx]}`;
+    document.getElementById('bannerSub').textContent = `현재 ${temp}°C`;
     showToast(`📍 현재 날씨 자동 적용 — ${temp}°C ${desc}`);
     const badge2 = document.getElementById('gpsBadge');
     if(badge2){badge2.textContent=`📍 ${temp}°C`;badge2.classList.remove('pulse');badge2.classList.add('gps-live');}
@@ -1154,10 +1134,6 @@ function inDistRange(d){
 
 function cycleWeather(){
   wIdx=(wIdx+1)%3; const w=weatherStates[wIdx];
-  const pill=document.getElementById('weatherPill');
-  pill.className='setting-pill '+w.cls;
-  document.getElementById('weatherIcon').textContent=w.icon;
-  document.getElementById('weatherLabel').textContent=w.label;
   document.getElementById('bannerIcon').textContent=w.bIcon;
   document.getElementById('bannerTitle').textContent=w.banner;
   shownCourseIds=new Set(); renderCourses(true);
@@ -1223,7 +1199,7 @@ function calcAgeScore(course, ages){
   }
   return total;
 }
-function updateSub(){const al=getAgeLabel?getAgeLabel():(document.getElementById('ageLabel')||{}).textContent||'11살';const ml=getMemberLabel?getMemberLabel():(document.getElementById('memberLabel')||{}).textContent||'3인 가족';document.getElementById('bannerSub').textContent=`서울/경기 · ${getAgeLabel()} 아이 · ${getMemberLabel()} · 당일치기`;}
+function updateSub(){}
 
 function setFilter(el,val){
   document.querySelectorAll('#catFilter .chip').forEach(c=>c.classList.remove('active'));

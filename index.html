@@ -1351,9 +1351,7 @@ function renderEvents(){
     }
     return;
   }
-  if(fallback){
-    el.innerHTML='<div style="font-size:11px;color:#a78bfa;padding:4px 0 6px;font-weight:600">📍 이 거리엔 행사가 없어요 · 전체 행사 보여드려요</div>';
-  } else { el.innerHTML=''; }
+  el.innerHTML='';
   // 메인 스크롤: 2주 이내 행사 우선, 없으면 전체에서 상위 8개
   const soon=all.filter(e=>(e.d??999)<=14);
   const list=(soon.length>0?soon:all).slice(0,8);
@@ -2390,9 +2388,7 @@ function renderPopups(){
     }
     return;
   }
-  el.innerHTML = popupFallback
-    ? '<div style="font-size:11px;color:#a78bfa;padding:4px 0 6px;font-weight:600">📍 이 거리엔 팝업이 없어요 · 전체 팝업 보여드려요</div>'
-    : '';
+  el.innerHTML='';
   el.innerHTML+=active.map(p=>`
     <div class="event-card" onclick="openPopupDetail(${p.id})">
       <div class="event-thumb" style="background:${p.bg}"><span style="font-size:34px">${p.emoji}</span></div>

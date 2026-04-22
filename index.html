@@ -1331,16 +1331,6 @@ function renderEvents(){
   let all=getEventsByDist()
     .filter(e => curAges[0]===0 || calcAgeContentScore(e.name, curAges) > -2)
     .sort(sortFn);
-  // 거리 필터 결과 없으면 → 전체 행사 거리순 fallback
-  let fallback=false;
-  if(!all.length && distMax!==9999 && EVENTS_DB.length>0){
-    all=EVENTS_DB
-      .filter(e=>isEventActive(e))
-      .filter(e=>!EVENT_BLACKLIST.some(kw=>(e.name||'').includes(kw)))
-      .filter(e=>curAges[0]===0||calcAgeContentScore(e.name,curAges)>-2)
-      .sort(sortFn);
-    fallback=true;
-  }
   document.getElementById('eventBadge').textContent=`${all.length}`;
   const el=document.getElementById('eventList');
   if(!all.length){
@@ -1355,7 +1345,7 @@ function renderEvents(){
   // 메인 스크롤: 2주 이내 행사 우선, 없으면 전체에서 상위 8개
   const soon=all.filter(e=>(e.d??999)<=14);
   const list=(soon.length>0?soon:all).slice(0,8);
-  el.innerHTML+= list.map((e,i)=>`
+  el.innerHTML= list.map((e,i)=>`
     <div class="event-card" onclick="openEventDetail(${e.id})">
       <div class="event-thumb" style="background:${e.bg}">${e.emoji}</div>
       <div class="event-body">
@@ -2367,17 +2357,6 @@ function renderPopups(){
     if(curAges[0]!==0 && calcAgeContentScore(p.name, curAges) <= -2) return false;
     return true;
   }).sort(popupSortFn);
-  // 거리 필터 결과 없으면 → 전체 팝업 fallback
-  let popupFallback=false;
-  if(!active.length && distMax!==9999 && all.length>0){
-    active=all.filter(p=>{
-      if(catVal==='실내' && getPopupPlaceType(p)!=='실내') return false;
-      if(catVal==='실외' && getPopupPlaceType(p)!=='실외') return false;
-      if(curAges[0]!==0 && calcAgeContentScore(p.name, curAges) <= -2) return false;
-      return true;
-    }).sort(popupSortFn);
-    popupFallback=true;
-  }
   document.getElementById('popupBadge').textContent=active.length;
   const el=document.getElementById('popupList');
   if(!active.length){
@@ -2389,7 +2368,7 @@ function renderPopups(){
     return;
   }
   el.innerHTML='';
-  el.innerHTML+=active.map(p=>`
+  el.innerHTML=active.map(p=>`
     <div class="event-card" onclick="openPopupDetail(${p.id})">
       <div class="event-thumb" style="background:${p.bg}"><span style="font-size:34px">${p.emoji}</span></div>
       <div class="event-body">

@@ -345,7 +345,7 @@ animation:snowFall 3s linear infinite;pointer-events:none;}
       <div class="dist-tab" onclick="setDist(this,0,30)">30분 이내</div>
       <div class="dist-tab" onclick="setDist(this,30,60)">30분~1시간</div>
       <div class="dist-tab" onclick="setDist(this,60,90)">약 1~1.5시간</div>
-      <div class="dist-tab" onclick="setDist(this,90,120)">약 1.5~2시간</div>
+      <div class="dist-tab" onclick="setDist(this,90,150)">1.5~2.5시간</div>
     </div>
     <div class="section-title">이번 주 행사 <span class="badge" id="eventBadge">LIVE</span></div>
     <div class="event-scroll" id="eventList"></div>
@@ -893,7 +893,52 @@ const COURSES_DB = [
   {type:'place',place:'전곡리 선사유적박물관',desc:'구석기 시대 유물 전시. 50만 년 전 역사 체험',naverRating:4.6,reviewCount:'7.3천',admission:'어른 3,000원/아이 1,500원',hours:'09:00~18:00(월 휴관)',tip:'아슐리안 주먹도끼 원본 전시. 세계적 발견지. 아이 역사 교육 최고'},
   {type:'place',place:'선사체험마을',desc:'구석기 움집 체험, 불피우기, 토기 만들기',naverRating:4.4,reviewCount:'2.1천',admission:'체험별 2,000~5,000원',hours:'10:00~17:00',tip:'불피우기·토기 만들기 예약 추천. 아이들이 직접 해볼 수 있어서 인기'},
   {type:'place',place:'한탄강 현무암 협곡 트레킹',desc:'유네스코 세계지질공원 구간. 주상절리 절경',naverRating:4.7,reviewCount:'1.3만',admission:'무료',hours:'상시',tip:'비둘기낭과 연계 방문 추천. 트레킹화 필수. 물 1.5L 이상 지참'},
-  {type:'food',place:'연천 한우·캠핑 식당',desc:'연천 한우 구이. 가격 착하고 맛있음',naverRating:4.4,reviewCount:'1.8천',admission:null,hours:'11:00~21:00',tip:'연천 한우(1인 20,000원~). 도심보다 20~30% 저렴. 고기 신선'}]}
+  {type:'food',place:'연천 한우·캠핑 식당',desc:'연천 한우 구이. 가격 착하고 맛있음',naverRating:4.4,reviewCount:'1.8천',admission:null,hours:'11:00~21:00',tip:'연천 한우(1인 20,000원~). 도심보다 20~30% 저렴. 고기 신선'}]},
+
+{id:31,emoji:'🚡',bg:'#E8F0FE',title:'춘천 삼악산 케이블카 + 의암호 뷰',region:'춘천시',driveMin:90,drive:'1시간 30분',total:'6시간',rating:4.7,cat:'실외',weather:['맑음','흐림'],season:['봄','여름','가을'],tags:['케이블카','뷰','힐링'],cost:'약 3만원',destLat:37.8793,destLng:127.7162,
+ stops:['삼악산 케이블카','의암호 산책로','춘천 닭갈비','소양강 카페'],
+ transit:[{km:3.5,min:10},{km:2.1,min:8},{km:1.8,min:7}],
+ timeline:[
+  {type:'place',place:'삼악산 케이블카',desc:'춘천 최고 전망. 의암호·시내 파노라마뷰',naverRating:4.7,reviewCount:'3.2만',admission:'어른 18,000원/아이 13,000원(왕복)',hours:'09:00~18:00(기상 악화 시 운행 중단)',tip:'주말 줄 김. 오전 9시 오픈런 추천. 상단 전망대에서 30분 이상 여유'},
+  {type:'place',place:'의암호 스카이워크·산책',desc:'유리 스카이워크 + 호수변 데크 산책',naverRating:4.5,reviewCount:'8.7천',admission:'무료',hours:'상시',tip:'스카이워크 발밑으로 호수 보임. 아이들 신기해함. 유모차 가능 데크길'},
+  {type:'food',place:'춘천 닭갈비 명동거리',desc:'원조 춘천 닭갈비. 숯불·철판 선택',naverRating:4.6,reviewCount:'6.7만',admission:null,hours:'11:00~22:00',tip:'철판 닭갈비(1인 12,000원~) + 볶음밥 추천. 막국수 세트 주문하면 든든'},
+  {type:'cafe',place:'소양강 뷰 카페',desc:'소양강 수상한카페 등 뷰 맛집',naverRating:4.4,reviewCount:'2.8천',admission:null,hours:'10:00~21:00',tip:'소양강스카이워크 인근 카페 뷰 좋음. 귀갓길에 여유롭게 들르기'}]},
+
+{id:32,emoji:'⛺',bg:'#E8F5E9',title:'홍천 수타사 + 공작산 생태숲',region:'홍천군',driveMin:95,drive:'1시간 35분',total:'6시간',rating:4.5,cat:'실외',weather:['맑음','흐림'],season:['봄','여름','가을'],tags:['사찰','숲','계곡'],cost:'약 1만원',destLat:37.6881,destLng:127.9264,
+ stops:['수타사','공작산 생태숲 출렁다리','홍천강 물놀이','홍천 찰옥수수'],
+ transit:[{km:1.2,min:5},{km:2.5,min:8},{km:3.1,min:10}],
+ timeline:[
+  {type:'place',place:'수타사',desc:'천년 고찰. 계곡 따라 걷는 산책길 일품',naverRating:4.6,reviewCount:'1.8만',admission:'어른 2,000원/아이 무료',hours:'일출~일몰',tip:'수타사 계곡 물소리 힐링. 봄엔 벚꽃, 가을엔 단풍. 경내 산책 30분'},
+  {type:'place',place:'공작산 생태숲 출렁다리',desc:'계곡 위 출렁다리. 짜릿한 체험',naverRating:4.5,reviewCount:'6.4천',admission:'무료',hours:'09:00~18:00',tip:'출렁다리 길이 150m. 아이들 무서워하지만 재미있어함. 계곡 뷰 굿'},
+  {type:'place',place:'홍천강 계곡 물놀이',desc:'맑은 계곡물. 여름 피서 최고',naverRating:4.4,reviewCount:'4.1천',admission:'무료(주차 유료)',hours:'상시(여름 성수기)',tip:'수심 얕은 구간 많아 어린아이도 안전. 물놀이 신발·튜브 필수'},
+  {type:'food',place:'홍천 찰옥수수·막국수',desc:'홍천 명물 찰옥수수와 메밀막국수',naverRating:4.4,reviewCount:'3.2천',admission:null,hours:'10:00~20:00',tip:'홍천 찰옥수수(2,000원/개) 귀갓길에 꼭 구입. 막국수(8,000원~) 시원하고 고소'}]},
+
+{id:33,emoji:'🏛️',bg:'#FFF9E6',title:'천안 독립기념관 + 광덕 수목원',region:'천안시',driveMin:100,drive:'1시간 40분',total:'6시간',rating:4.6,cat:'실외',weather:['맑음','흐림'],season:['봄','여름','가을'],tags:['역사','교육','자연'],cost:'약 1만원',destLat:36.8966,destLng:127.1552,
+ stops:['독립기념관','겨레의 탑 광장','광덕사','호두과자 쇼핑'],
+ transit:[{km:1.5,min:6},{km:8.2,min:18},{km:0.5,min:3}],
+ timeline:[
+  {type:'place',place:'독립기념관',desc:'민족의 독립 역사 체험. 7개 전시관',naverRating:4.7,reviewCount:'4.5만',admission:'무료(특별전시 유료)',hours:'09:30~18:00(월 휴관)',tip:'겨레의 집(제7관) 아이들 체험 최고. 광장 넓어 뛰어다니기 좋음. 도시락 가져오기'},
+  {type:'place',place:'겨레의 탑·광장 나들이',desc:'드넓은 잔디광장. 피크닉 명소',naverRating:4.6,reviewCount:'2.1만',admission:'무료',hours:'상시',tip:'분수 광장에서 물놀이 가능(여름). 자전거 대여 있음. 사진 찍기 좋은 구도'},
+  {type:'place',place:'광덕사 은행나무길',desc:'600년 은행나무. 가을 황금빛 절경',naverRating:4.6,reviewCount:'9.3천',admission:'무료',hours:'상시',tip:'가을(10월 말~11월 초) 은행나무 절정. 사찰 경내 조용하고 평화로움'},
+  {type:'food',place:'천안 호두과자 원조',desc:'천안 명물 호두과자. 따끈한 간식',naverRating:4.5,reviewCount:'1.2만',admission:null,hours:'09:00~21:00',tip:'학화호두과자(원조) 추천. 1봉 3,000원~. 귀갓길 고속도로 들어가기 전 구입'}]},
+
+{id:34,emoji:'🌲',bg:'#E8F5E3',title:'인제 원대리 자작나무숲',region:'인제군',driveMin:110,drive:'1시간 50분',total:'6시간',rating:4.8,cat:'실외',weather:['맑음','흐림'],season:['봄','가을'],tags:['숲','트레킹','자연'],cost:'약 1만원',destLat:38.0233,destLng:128.1439,
+ stops:['원대리 자작나무숲','숲속 트레킹','인제 황태구이','소양강댐'],
+ transit:[{km:2.1,min:8},{km:12.5,min:20},{km:5.2,min:12}],
+ timeline:[
+  {type:'place',place:'원대리 자작나무숲',desc:'순백 자작나무 138만 그루. 국내 최대',naverRating:4.8,reviewCount:'5.6만',admission:'무료(주차 3,000원)',hours:'09:00~15:00 입산(일몰 전 하산)',tip:'탐방로 왕복 4km·2시간. 유모차 불가. 아이 걷기 가능 연령(5세+) 권장. 봄·가을 최고'},
+  {type:'place',place:'자작나무 숲속 포토존',desc:'하얀 나무껍질 숲. 핀란드 분위기',naverRating:4.8,reviewCount:'3.1만',admission:'무료',hours:'입산 시간 내',tip:'안개 낀 날 더 신비로움. 패딩 지참 권장(숲속 서늘함). 간식·물 충분히'},
+  {type:'food',place:'인제 황태 구이·황태국밥',desc:'인제 황태 명물. 구수하고 든든',naverRating:4.5,reviewCount:'4.2천',admission:null,hours:'10:00~20:00',tip:'황태구이 정식(15,000원~). 황태해장국(8,000원) 추천. 하산 후 허기 달래기 최고'},
+  {type:'place',place:'소양강댐 전망대',desc:'우리나라 최대 사력댐. 귀갓길 들르기',naverRating:4.5,reviewCount:'1.1만',admission:'무료',hours:'상시',tip:'댐 위에서 소양호 전망 가능. 주차 무료. 귀갓길 10분 거리. 사진 포인트'}]},
+
+{id:35,emoji:'🌅',bg:'#FFF3E0',title:'아산 외암민속마을 + 현충사',region:'아산시',driveMin:95,drive:'1시간 35분',total:'6시간',rating:4.5,cat:'실외',weather:['맑음','흐림'],season:['봄','여름','가을'],tags:['역사','체험','전통'],cost:'약 2만원',destLat:36.7394,destLng:127.0156,
+ stops:['외암민속마을','전통 짚공예 체험','현충사','아산 순대국밥'],
+ transit:[{km:4.2,min:10},{km:3.8,min:9},{km:0.5,min:3}],
+ timeline:[
+  {type:'place',place:'외암민속마을',desc:'조선시대 양반 가옥 보존. 실제 주민 거주',naverRating:4.5,reviewCount:'1.4만',admission:'어른 2,000원/아이 1,000원',hours:'09:00~18:00',tip:'봄 꽃 피는 시즌 예쁨. 돌담길 산책 30분. 고택에서 전통 체험 가능(짚공예 등)'},
+  {type:'place',place:'짚공예·전통 체험',desc:'짚으로 만드는 달걀꾸러미·새끼줄 체험',naverRating:4.4,reviewCount:'3.2천',admission:'체험별 3,000~8,000원',hours:'10:00~17:00(사전 확인)',tip:'아이들 손으로 직접 만들어보는 체험. 완성품 가져가기 가능. 사전 예약 권장'},
+  {type:'place',place:'현충사',desc:'충무공 이순신 장군 유적. 넓은 잔디 공원',naverRating:4.6,reviewCount:'2.8만',admission:'무료',hours:'09:00~18:00(월 휴관)',tip:'어린이 이순신 장군 교육 최고. 넓은 잔디 뛰어놀기 OK. 봄 벚꽃 명소'},
+  {type:'food',place:'아산 순대국밥',desc:'충청도 순대국밥. 구수하고 저렴',naverRating:4.4,reviewCount:'2.1천',admission:null,hours:'07:00~21:00',tip:'아산 순대국밥(7,000원~) 가성비 최고. 시장 내 오래된 맛집 찾아보기'}]}
 ];
 
 /* ─── TourAPI ─── */
@@ -927,6 +972,8 @@ function getAreaCodesFromAddr(addr) {
   // 경기도 거주자는 서울/인천 행사도 포함
   if(codes.has('31')) { codes.add('1'); codes.add('2'); }
   if(codes.has('1') && !codes.has('31')) codes.add('31');
+  // 수도권(서울·경기) 거주자는 강원 행사도 포함 (1.5~2시간 거리 커버)
+  if(codes.has('1') || codes.has('31')) codes.add('32');
   return [...codes];
 }
 
@@ -946,7 +993,7 @@ async function loadPopupsFromKakao() {
       const pLng = item.lng || null;
       const dist = (userLat && userLng && pLat && pLng)
         ? kmToDriveMin(haversineKm(userLat, userLng, pLat, pLng))
-        : 60;
+        : null; // 좌표 없는 팝업은 null → 모든 거리 필터에서 표시
 
       // 날짜 포맷
       const start = item.startDate ? item.startDate.slice(5).replace('-','/') : '';
@@ -1187,7 +1234,7 @@ function setDist(el,min,max){
 function inDistRange(d){
   if(distMax===9999) return true;          // 전체
   if(distMin===0) return d<=distMax;       // 30분 이내
-  return d>distMin && d<=distMax;          // 나머지 범위
+  return d>=distMin && d<=distMax;         // 나머지 범위 (경계값 포함)
 }
 
 function cycleWeather(){
@@ -1571,6 +1618,7 @@ function refreshCourses(){
   setTimeout(()=>{
     btn.classList.remove('spinning');
     document.getElementById('courseList').style.opacity='1';
+    shownCourseIds=new Set(); // 매 새로고침마다 전체 pool에서 랜덤 선택
     renderCourses(true);
   },600);
 }

@@ -2541,12 +2541,17 @@ async function fetchDynamicCourseImage(course, placeUrl) {
 }
 
 function applyCourseThumbImage(courseId, imageUrl) {
-  document.querySelectorAll(`.course-thumb[data-course-id="${courseId}"]`).forEach(el => {
-    el.style.backgroundImage = `url('${imageUrl}')`;
-    el.style.backgroundColor = '#e8e8e8';
-    const emoji = el.querySelector('div[style*="font-size:50px"]');
-    if (emoji) emoji.remove();
-  });
+  const img = new Image();
+  img.onload = () => {
+    document.querySelectorAll(`.course-thumb[data-course-id="${courseId}"]`).forEach(el => {
+      el.style.backgroundImage = `url('${imageUrl}')`;
+      el.style.backgroundColor = '#e8e8e8';
+      const emoji = el.querySelector('div[style*="font-size:50px"]');
+      if (emoji) emoji.remove();
+    });
+  };
+  // 로드 실패 시 이모지 fallback 유지 (아무것도 안 함)
+  img.src = imageUrl;
 }
 
 /* ─── 동적 코스 생성 (카카오 Places 기반) ─── */

@@ -74,11 +74,24 @@ export default async function handler(req, res) {
 
 async function fetchTourImage(keyword) {
   try {
-    const url = `https://apis.data.go.kr/B551011/KorService2/searchKeyword2?serviceKey=${TOUR_KEY}&keyword=${encodeURIComponent(keyword)}&_type=json&MobileOS=ETC&MobileApp=abbadda&numOfRows=5&pageNo=1`;
-    const resp = await fetch(url, { signal: AbortSignal.timeout(5000) });
+    const searchUrl = `https://apis.data.go.kr/B551011/KorService2/searchKeyword2?serviceKey=${TOUR_KEY}&keyword=${encodeURIComponent(keyword)}&_type=json&MobileOS=ETC&MobileApp=abbadda&numOfRows=5&pageNo=1`;
+    const resp = await fetch(searchUrl, { signal: AbortSignal.timeout(5000) });
     const data = await resp.json();
     const items = data?.response?.body?.items?.item;
     const arr = Array.isArray(items) ? items : (items ? [items] : []);
+    if (!arr.length) return '';
+
+    // contentid로 detailImage2 호출 → 원본 고화질
+    const contentid = arr[0].contentid;
+    if (contentid) {
+      const imgUrl = `https://apis.data.go.kr/B551011/KorService2/detailImage2?serviceKey=${TOUR_KEY}&contentId=${contentid}&imageYN=Y&MobileOS=ETC&MobileApp=abbadda&_type=json`;
+      const imgResp = await fetch(imgUrl, { signal: AbortSignal.timeout(5000) });
+      const imgData = await imgResp.json();
+      const imgItems = imgData?.response?.body?.items?.item;
+      const imgArr = Array.isArray(imgItems) ? imgItems : (imgItems ? [imgItems] : []);
+      if (imgArr[0]?.originimgurl) return imgArr[0].originimgurl;
+    }
+    // detailImage2 실패 시 firstimage 폴백
     const withImg = arr.find(i => i.firstimage);
     return withImg ? withImg.firstimage : '';
   } catch {

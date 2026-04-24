@@ -33,11 +33,12 @@ export default async function handler(req, res) {
         const key = 'seoul_' + row.TITLE + startDate;
         if (seen.has(key)) continue;
         seen.add(key);
+        const place = row.PLACE || '';
         allItems.push({
           title: row.TITLE,
           eventstartdate: startDate.replace(/-/g, ''),
           eventenddate: endDate.replace(/-/g, ''),
-          addr1: `서울 ${row.GUNAME || ''} ${row.PLACE || ''}`.trim(),
+          addr1: `서울 ${row.GUNAME || ''} ${place}`.trim(),
           mapy: row.LAT || null,
           mapx: row.LOT || null,
           contentid: `seoul_${seen.size}`,
@@ -46,6 +47,7 @@ export default async function handler(req, res) {
           usefee: row.USE_FEE || '',
           usetimefestival: row.PRO_TIME || '',
           codename: row.CODENAME || '',
+          isDDP: place.includes('DDP') || place.includes('동대문디자인플라자') || place.includes('동대문 디자인플라자'),
         });
       }
     } catch {}
@@ -54,7 +56,7 @@ export default async function handler(req, res) {
   // ── 2) 한국관광공사 TourAPI 전국 축제/행사 (지역코드별 병렬 호출) ──
   const fetchTour = async (code) => {
     try {
-      const url = `https://apis.data.go.kr/B551011/KorService2/searchFestival2?serviceKey=${TOUR_KEY}&numOfRows=100&pageNo=1&MobileOS=ETC&MobileApp=abbadda&_type=json&arrange=A&eventStartDate=${startFrom}&areaCode=${code}`;
+      const url = `https://apis.data.go.kr/B551011/KorService2/searchFestival2?serviceKey=${TOUR_KEY}&numOfRows=1000&pageNo=1&MobileOS=ETC&MobileApp=abbadda&_type=json&arrange=A&eventStartDate=${startFrom}&areaCode=${code}`;
       const resp = await fetch(url);
       if (!resp.ok) return;
       const data = await resp.json();

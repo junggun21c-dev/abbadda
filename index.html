@@ -1609,7 +1609,7 @@ function courseCardHTML(c,i,animate){
   });
   const flowHtml=flowChips.map((chip,j)=>j<flowChips.length-1?chip+`<span class="sf-arrow">→</span>`:chip).join('')+(c.stops.length>maxShow?`<span class="sf-more">+${c.stops.length-maxShow}</span>`:'');
   return `<div class="course-card${animate?' fade-in':''}" style="${animate?`animation-delay:${i*0.07}s`:''}" onclick="openCourse(${realIdx})">
-    <div class="course-thumb" style="${c.image?`background-image:url('${c.image}');background-color:#e8e8e8`:`background:${c.bg}`}">
+    <div class="course-thumb" data-course-id="${c.id}" style="${c.image?`background-image:url('${c.image}');background-color:#e8e8e8`:`background:${c.bg}`}">
       ${c.image?'':` <div style="font-size:50px">${c.emoji}</div>`}
       <div class="time-badge">🚗 ${c.drive}</div>
       ${c.cost?`<div class="cost-badge">💰 ${c.cost}</div>`:''}
@@ -2312,7 +2312,7 @@ function renderFavPage(){
     });
     const flowHtml=flowChips.map((chip,j)=>j<flowChips.length-1?chip+`<span class="sf-arrow">→</span>`:chip).join('')+(c.stops.length>3?`<span class="sf-more">+${c.stops.length-3}</span>`:'');
     return `<div class="course-card fade-in" style="animation-delay:${saved.indexOf({idx,course:c})*0.06}s" onclick="openCourse(${idx})">
-      <div class="course-thumb" style="${c.image?`background-image:url('${c.image}');background-color:#e8e8e8`:`background:${c.bg}`}">
+      <div class="course-thumb" data-course-id="${c.id}" style="${c.image?`background-image:url('${c.image}');background-color:#e8e8e8`:`background:${c.bg}`}">
         ${c.image?'':` <div style="font-size:50px">${c.emoji}</div>`}
         <div class="time-badge">🚗 ${c.drive}</div>
         ${c.cost?`<div class="cost-badge">💰 ${c.cost}</div>`:''}
@@ -2514,20 +2514,19 @@ async function buildCourseWithPopup(popupId){
 
 /* ─── 코스 대표 이미지 로드 ─── */
 async function fetchCourseImages() {
-  // 정적 코스: TourAPI keyword 검색으로 이미지 일괄 조회
   const staticCourses = COURSES_DB.filter(c => !c.isDynamic && !c.image);
-  if (staticCourses.length) {
-    const keywords = staticCourses.map(c => c.title).join('|');
-    try {
-      const resp = await fetch(`/api/courseimages?keywords=${encodeURIComponent(keywords)}`);
-      const images = await resp.json();
-      let updated = false;
-      COURSES_DB.forEach(c => {
-        if (!c.isDynamic && images[c.title]) { c.image = images[c.title]; updated = true; }
-      });
-      if (updated) renderCourses(false);
-    } catch {}
-  }
+  if (!staticCourses.length) return;
+  const keywords = staticCourses.map(c => c.title).join('|');
+  try {
+    const resp = await fetch(`/api/courseimages?keywords=${encodeURIComponent(keywords)}`);
+    const images = await resp.json();
+    COURSES_DB.forEach(c => {
+      if (!c.isDynamic && images[c.title]) {
+        c.image = images[c.title];
+        applyCourseThumbImage(c.id, c.image);
+      }
+    });
+  } catch {}
 }
 
 async function fetchDynamicCourseImage(course, placeUrl) {
@@ -2537,8 +2536,17 @@ async function fetchDynamicCourseImage(course, placeUrl) {
     const keyword = encodeURIComponent(course.title.replace(/\s*코스$/, ''));
     const resp = await fetch(`/api/courseimages?place_id=${idMatch[1]}&keyword=${keyword}`);
     const data = await resp.json();
-    if (data.image) { course.image = data.image; renderCourses(false); }
+    if (data.image) { course.image = data.image; applyCourseThumbImage(course.id, data.image); }
   } catch {}
+}
+
+function applyCourseThumbImage(courseId, imageUrl) {
+  document.querySelectorAll(`.course-thumb[data-course-id="${courseId}"]`).forEach(el => {
+    el.style.backgroundImage = `url('${imageUrl}')`;
+    el.style.backgroundColor = '#e8e8e8';
+    const emoji = el.querySelector('div[style*="font-size:50px"]');
+    if (emoji) emoji.remove();
+  });
 }
 
 /* ─── 동적 코스 생성 (카카오 Places 기반) ─── */

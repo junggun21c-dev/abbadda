@@ -1330,15 +1330,12 @@ function setFilter(el,val){
 
 function renderEvents(){
   const curAges=getChildAges();
-  const sortFn=(a,b)=>{
-    const aOngoing=(a.d??999)===0?0:1, bOngoing=(b.d??999)===0?0:1;
-    const aFest=(a.codename||'').includes('축제')?0:1, bFest=(b.codename||'').includes('축제')?0:1;
-    if(aOngoing!==bOngoing) return aOngoing-bOngoing;
-    if(aFest!==bFest) return aFest-bFest;
-    const sa=calcAgeContentScore(a.name,curAges), sb=calcAgeContentScore(b.name,curAges);
-    if(sb!==sa) return sb-sa;
-    return (a.d??999)-(b.d??999)||a.distMin-b.distMin;
+  const today0=new Date(); today0.setHours(0,0,0,0);
+  const endUrgency=e=>{
+    if(!e.endDateRaw) return 365;
+    return Math.max(0, Math.ceil((new Date(e.endDateRaw)-today0)/86400000));
   };
+  const sortFn=(a,b)=>endUrgency(a)-endUrgency(b)||(a.d??999)-(b.d??999);
   let all=getEventsByDist()
     .filter(e => curAges[0]===0 || calcAgeContentScore(e.name, curAges) > -2)
     .sort(sortFn);
@@ -1353,11 +1350,8 @@ function renderEvents(){
     return;
   }
   el.innerHTML='';
-  // 메인 스크롤: 진행 중 최대 5개 + 곧 시작(d≤14) 최대 5개, 합쳐서 8개
-  const ongoing=all.filter(e=>(e.d??999)===0);
-  const upcoming=all.filter(e=>(e.d??999)>0&&(e.d??999)<=14);
-  let list=[...ongoing.slice(0,5),...upcoming.slice(0,5)].slice(0,8);
-  if(!list.length) list=all.slice(0,8);
+  const soon=all.filter(e=>(e.d??999)<=14);
+  const list=(soon.length>0?soon:all).slice(0,8);
   el.innerHTML= list.map((e,i)=>`
     <div class="event-card" onclick="openEventDetail(${e.id})">
       <div class="event-thumb" style="background:${e.bg}">${e.emoji}</div>
@@ -2365,11 +2359,11 @@ function renderPopups(){
     return new Date(p.endDateRaw)>=today;
   });
   const curAges=getChildAges();
-  const popupSortFn=(a,b)=>{
-    const sa=calcAgeContentScore(a.name,curAges), sb=calcAgeContentScore(b.name,curAges);
-    if(sb!==sa) return sb-sa;
-    return (a.distMin||120)-(b.distMin||120);
+  const endUrgencyP=p=>{
+    if(!p.endDateRaw) return 365;
+    return Math.max(0,Math.ceil((new Date(p.endDateRaw)-today)/86400000));
   };
+  const popupSortFn=(a,b)=>endUrgencyP(a)-endUrgencyP(b)||(a.distMin||120)-(b.distMin||120);
   let active=all.filter(p=>{
     if(p.distMin && !inDistRange(p.distMin)) return false;
     if(catVal==='실내' && getPopupPlaceType(p)!=='실내') return false;

@@ -9,9 +9,12 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   res.setHeader('Cache-Control', 's-maxage=86400, stale-while-revalidate=3600');
 
-  // 카카오 장소 단건 이미지
+  // 카카오 장소 단건 이미지 (없으면 TourAPI 폴백)
   if (req.query.place_id) {
-    const image = await fetchKakaoPlaceImage(req.query.place_id);
+    let image = await fetchKakaoPlaceImage(req.query.place_id);
+    if (!image && req.query.keyword) {
+      image = await fetchTourImage(req.query.keyword);
+    }
     return res.status(200).json({ image: image || '' });
   }
 
@@ -33,6 +36,20 @@ export default async function handler(req, res) {
   }));
 
   return res.status(200).json(results);
+}
+
+async function fetchTourImage(keyword) {
+  try {
+    const url = `https://apis.data.go.kr/B551011/KorService2/searchKeyword2?serviceKey=${TOUR_KEY}&keyword=${encodeURIComponent(keyword)}&_type=json&MobileOS=ETC&MobileApp=abbadda&numOfRows=5&pageNo=1`;
+    const resp = await fetch(url, { signal: AbortSignal.timeout(5000) });
+    const data = await resp.json();
+    const items = data?.response?.body?.items?.item;
+    const arr = Array.isArray(items) ? items : (items ? [items] : []);
+    const withImg = arr.find(i => i.firstimage);
+    return withImg ? withImg.firstimage : '';
+  } catch {
+    return '';
+  }
 }
 
 async function fetchKakaoPlaceImage(placeId) {

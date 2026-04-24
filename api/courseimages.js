@@ -1,6 +1,6 @@
 // 코스 대표 이미지 조회
-// 정적 코스(bulk): TourAPI → 네이버 (동시 5개 제한)
-// 동적 코스(place_id): 카카오 → 네이버 → TourAPI
+// 정적 코스(bulk): Wikipedia → TourAPI → 네이버 (동시 5개 제한)
+// 동적 코스(place_id): Wikipedia → 카카오 → 네이버 → TourAPI
 
 const TOUR_KEY = '7cd0819411acef067d0cc1ab73350bb7105cde8c2fd3de620bec99e518953f95';
 const NAVER_CLIENT_ID = 'ioZXkMir4q45hSe5NjQx';
@@ -32,36 +32,44 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   res.setHeader('Cache-Control', 's-maxage=86400, stale-while-revalidate=3600');
 
-  // ── 동적 코스 단건: 카카오 → 네이버 → TourAPI ──
+  // ── 동적 코스 단건: Wikipedia → 카카오 → 네이버 → TourAPI ──
   if (req.query.place_id) {
     const keyword = req.query.keyword || '';
     const ckw = keyword ? cleanKeyword(decodeURIComponent(keyword)) : '';
-    let image = await fetchKakaoPlaceImage(req.query.place_id);
+    let image = ckw ? await fetchWikipediaImage(ckw) : '';
+    if (!image) image = await fetchKakaoPlaceImage(req.query.place_id);
     if (!image && ckw) image = await fetchNaverImage(ckw);
     if (!image && ckw) image = await fetchTourImage(ckw);
     return res.status(200).json({ image: image || '' });
   }
 
-  // ── 정적 코스 bulk: TourAPI 우선, 없는 것만 네이버 (5개 병렬 제한) ──
+  // ── 정적 코스 bulk: Wikipedia → TourAPI → 네이버 (5개 병렬 제한) ──
   const keywords = (req.query.keywords || '').split('|').map(s => s.trim()).filter(Boolean);
   if (!keywords.length) return res.status(200).json({});
 
   const limit = pLimit(5);
   const results = {};
 
-  // 1차: TourAPI 병렬 (빠르고 안정적)
+  // 1차: Wikipedia (무료, 고화질 공식 사진)
   await Promise.all(keywords.map(kw => limit(async () => {
+    const ckw = cleanKeyword(kw);
+    const image = await fetchWikipediaImage(ckw);
+    if (image) results[kw] = image;
+  })));
+
+  // 2차: Wikipedia 못 찾은 것 → TourAPI
+  const miss1 = keywords.filter(kw => !results[kw]);
+  await Promise.all(miss1.map(kw => limit(async () => {
     const ckw = cleanKeyword(kw);
     const image = await fetchTourImage(ckw);
     if (image) results[kw] = image;
   })));
 
-  // 2차: TourAPI에서 못 찾은 것만 네이버로 (동시 5개 제한)
-  const missing = keywords.filter(kw => !results[kw]);
-  await Promise.all(missing.map(kw => limit(async () => {
+  // 3차: 여전히 없는 것 → 네이버
+  const miss2 = keywords.filter(kw => !results[kw]);
+  await Promise.all(miss2.map(kw => limit(async () => {
     const ckw = cleanKeyword(kw);
     let image = await fetchNaverImage(ckw);
-    // 여전히 없으면 마지막 단어만으로 재시도 (예: "레일바이크")
     if (!image) {
       const lastWord = ckw.split(' ').pop();
       if (lastWord && lastWord !== ckw) image = await fetchNaverImage(lastWord);
@@ -70,6 +78,21 @@ export default async function handler(req, res) {
   })));
 
   return res.status(200).json(results);
+}
+
+async function fetchWikipediaImage(keyword) {
+  try {
+    const url = `https://ko.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(keyword)}&prop=pageimages&format=json&pithumbsize=1200&redirects=1&pilicense=any`;
+    const resp = await fetch(url, { signal: AbortSignal.timeout(5000) });
+    const data = await resp.json();
+    const pages = data?.query?.pages || {};
+    const page = Object.values(pages)[0];
+    // pageid -1 = 문서 없음
+    if (!page || page.pageid === -1) return '';
+    return page.thumbnail?.source || '';
+  } catch {
+    return '';
+  }
 }
 
 async function fetchTourImage(keyword) {

@@ -2516,21 +2516,21 @@ async function buildCourseWithPopup(popupId){
 let dynamicCoursesLoaded = false;
 
 const DYNAMIC_CATEGORIES = [
-  { kw:'키즈카페',       cat:'실내', weather:['흐림','비','실내'], tags:['키즈카페','아이추천'],  emoji:'☕' },
-  { kw:'어린이박물관',   cat:'실내', weather:['흐림','비','실내'], tags:['박물관','교육','아이추천'], emoji:'🏛️' },
-  { kw:'과학관',         cat:'실내', weather:['흐림','비','실내'], tags:['과학','교육','아이추천'], emoji:'🔬' },
-  { kw:'아쿠아리움',     cat:'실내', weather:['흐림','비','실내'], tags:['자연','아이추천'],        emoji:'🐠' },
-  { kw:'식물원',         cat:'실내', weather:['흐림','비','실내'], tags:['자연','힐링'],           emoji:'🌺' },
-  { kw:'천문대',         cat:'실내', weather:['흐림','비','실내'], tags:['과학','교육'],           emoji:'🔭' },
-  { kw:'수목원',         cat:'실외', weather:['맑음','흐림'],      tags:['자연','힐링'],           emoji:'🌳' },
-  { kw:'동물원',         cat:'실외', weather:['맑음','흐림'],      tags:['자연','아이추천'],        emoji:'🦁' },
-  { kw:'놀이공원',       cat:'실외', weather:['맑음','흐림'],      tags:['놀이','아이추천'],        emoji:'🎢' },
-  { kw:'생태공원',       cat:'실외', weather:['맑음','흐림'],      tags:['자연','아이추천'],        emoji:'🌿' },
-  { kw:'테마파크',       cat:'실외', weather:['맑음','흐림'],      tags:['놀이','아이추천'],        emoji:'🎡' },
-  { kw:'자연휴양림',     cat:'실외', weather:['맑음'],             tags:['자연','힐링'],           emoji:'⛺' },
-  { kw:'물놀이장',       cat:'실외', weather:['맑음'],             tags:['물놀이','여름'],          emoji:'💦', minTemp:20, operationMonths:[6,7,8] },
-  { kw:'역사박물관',     cat:'실내', weather:['흐림','비','실내'], tags:['박물관','역사','교육'],   emoji:'🏺' },
-  { kw:'유아숲체험원',   cat:'실외', weather:['맑음','흐림'],      tags:['자연','유아추천'],        emoji:'🌲' },
+  { kw:'키즈카페',       cat:'실내', weather:['흐림','비','실내'], tags:['키즈카페','아이추천'],  emoji:'☕', validCodes:['AT4','CE7','CT1','FD6'] },
+  { kw:'어린이박물관',   cat:'실내', weather:['흐림','비','실내'], tags:['박물관','교육','아이추천'], emoji:'🏛️', validCodes:['AT4','CT1'] },
+  { kw:'과학관',         cat:'실내', weather:['흐림','비','실내'], tags:['과학','교육','아이추천'], emoji:'🔬', validCodes:['AT4','CT1'] },
+  { kw:'아쿠아리움',     cat:'실내', weather:['흐림','비','실내'], tags:['자연','아이추천'],        emoji:'🐠', validCodes:['AT4','CT1'] },
+  { kw:'식물원',         cat:'실내', weather:['흐림','비','실내'], tags:['자연','힐링'],           emoji:'🌺', validCodes:['AT4','CT1'] },
+  { kw:'천문대',         cat:'실내', weather:['흐림','비','실내'], tags:['과학','교육'],           emoji:'🔭', validCodes:['AT4','CT1'] },
+  { kw:'수목원',         cat:'실외', weather:['맑음','흐림'],      tags:['자연','힐링'],           emoji:'🌳', validCodes:['AT4','CT1'] },
+  { kw:'동물원',         cat:'실외', weather:['맑음','흐림'],      tags:['자연','아이추천'],        emoji:'🦁', validCodes:['AT4','CT1'] },
+  { kw:'놀이공원',       cat:'실외', weather:['맑음','흐림'],      tags:['놀이','아이추천'],        emoji:'🎢', validCodes:['AT4','CT1'] },
+  { kw:'생태공원',       cat:'실외', weather:['맑음','흐림'],      tags:['자연','아이추천'],        emoji:'🌿', validCodes:['AT4','CT1'] },
+  { kw:'테마파크',       cat:'실외', weather:['맑음','흐림'],      tags:['놀이','아이추천'],        emoji:'🎡', validCodes:['AT4','CT1'] },
+  { kw:'자연휴양림',     cat:'실외', weather:['맑음'],             tags:['자연','힐링'],           emoji:'⛺', validCodes:['AT4','CT1'] },
+  { kw:'물놀이장',       cat:'실외', weather:['맑음'],             tags:['물놀이','여름'],          emoji:'💦', minTemp:20, operationMonths:[6,7,8], validCodes:['AT4','CT1'] },
+  { kw:'역사박물관',     cat:'실내', weather:['흐림','비','실내'], tags:['박물관','역사','교육'],   emoji:'🏺', validCodes:['AT4','CT1'] },
+  { kw:'유아숲체험원',   cat:'실외', weather:['맑음','흐림'],      tags:['자연','유아추천'],        emoji:'🌲', validCodes:['AT4','CT1'] },
 ];
 
 let _dynId = 2000;
@@ -2560,8 +2560,15 @@ async function loadDynamicCourses() {
   for (const cat of activeCats) {
     ps.keywordSearch(cat.kw, (data, status) => {
       if (status === kakao.maps.services.Status.OK) {
-        // 전화번호 없는 곳 제외 (관리회사·폐업·미운영 시설 차단)
-        const places = data.filter(p => p.phone && p.phone.trim()).slice(0, 5);
+        // 부적합 장소 필터: 전화번호·도로명주소 없음, 카테고리 코드 불일치, 이름 블랙리스트
+        const PLACE_BLOCK = /팬텀|성인|에로|어른전용|룸살롱|나이트클럽|유흥|단란|안마/;
+        const places = data.filter(p => {
+          if (!p.phone || !p.phone.trim()) return false;
+          if (!p.road_address_name || !p.road_address_name.trim()) return false;
+          if (PLACE_BLOCK.test(p.place_name)) return false;
+          if (cat.validCodes && !cat.validCodes.includes(p.category_group_code)) return false;
+          return true;
+        }).slice(0, 5);
         for (const place of places) {
           const pLat = parseFloat(place.y), pLng = parseFloat(place.x);
           // 동일 카카오 URL 동적 코스만 중복 제거 (정적 코스와는 중복 허용)

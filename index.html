@@ -1609,8 +1609,8 @@ function courseCardHTML(c,i,animate){
   });
   const flowHtml=flowChips.map((chip,j)=>j<flowChips.length-1?chip+`<span class="sf-arrow">→</span>`:chip).join('')+(c.stops.length>maxShow?`<span class="sf-more">+${c.stops.length-maxShow}</span>`:'');
   return `<div class="course-card${animate?' fade-in':''}" style="${animate?`animation-delay:${i*0.07}s`:''}" onclick="openCourse(${realIdx})">
-    <div class="course-thumb" data-course-id="${c.id}" style="${c.image?`background-image:url('${c.image}');background-color:#e8e8e8`:`background:${c.bg}`}">
-      ${c.image?'':` <div style="font-size:50px">${c.emoji}</div>`}
+    <div class="course-thumb" style="background:${c.bg}">
+      <div style="font-size:50px">${c.emoji}</div>
       <div class="time-badge">🚗 ${c.drive}</div>
       ${c.cost?`<div class="cost-badge">💰 ${c.cost}</div>`:''}
       <button class="fav-btn" onclick="event.stopPropagation();toggleFav(${realIdx},this)">${favs.has(realIdx)?'❤️':'🤍'}</button>
@@ -2312,8 +2312,8 @@ function renderFavPage(){
     });
     const flowHtml=flowChips.map((chip,j)=>j<flowChips.length-1?chip+`<span class="sf-arrow">→</span>`:chip).join('')+(c.stops.length>3?`<span class="sf-more">+${c.stops.length-3}</span>`:'');
     return `<div class="course-card fade-in" style="animation-delay:${saved.indexOf({idx,course:c})*0.06}s" onclick="openCourse(${idx})">
-      <div class="course-thumb" data-course-id="${c.id}" style="${c.image?`background-image:url('${c.image}');background-color:#e8e8e8`:`background:${c.bg}`}">
-        ${c.image?'':` <div style="font-size:50px">${c.emoji}</div>`}
+      <div class="course-thumb" style="background:${c.bg}">
+        <div style="font-size:50px">${c.emoji}</div>
         <div class="time-badge">🚗 ${c.drive}</div>
         ${c.cost?`<div class="cost-badge">💰 ${c.cost}</div>`:''}
         <button class="fav-btn" onclick="event.stopPropagation();removeFav(${idx},this)">❤️</button>
@@ -2513,59 +2513,6 @@ async function buildCourseWithPopup(popupId){
 }
 
 /* ─── 코스 대표 이미지 로드 ─── */
-async function fetchCourseImages() {
-  const staticCourses = COURSES_DB.filter(c => !c.isDynamic && !c.image);
-  if (!staticCourses.length) return;
-  const keywords = staticCourses.map(c => c.title).join('|');
-  try {
-    const resp = await fetch(`/api/courseimages?keywords=${encodeURIComponent(keywords)}`);
-    const images = await resp.json();
-    COURSES_DB.forEach(c => {
-      if (!c.isDynamic && images[c.title]) {
-        c.image = images[c.title];
-        applyCourseThumbImage(c.id, c.image);
-      }
-    });
-  } catch {}
-}
-
-// 동적 코스 이미지 호출 큐 (동시 5개 제한)
-const _dynImgQueue = [];
-let _dynImgRunning = 0;
-function _dynImgNext() {
-  if (_dynImgRunning >= 5 || !_dynImgQueue.length) return;
-  _dynImgRunning++;
-  const { fn } = _dynImgQueue.shift();
-  fn().finally(() => { _dynImgRunning--; _dynImgNext(); });
-}
-
-async function fetchDynamicCourseImage(course, placeUrl) {
-  _dynImgQueue.push({ fn: async () => {
-    const idMatch = placeUrl && placeUrl.match(/\/(\d+)$/);
-    if (!idMatch) return;
-    try {
-      const keyword = encodeURIComponent(course.title.replace(/\s*코스$/, ''));
-      const resp = await fetch(`/api/courseimages?place_id=${idMatch[1]}&keyword=${keyword}`);
-      const data = await resp.json();
-      if (data.image) { course.image = data.image; applyCourseThumbImage(course.id, data.image); }
-    } catch {}
-  }});
-  _dynImgNext();
-}
-
-function applyCourseThumbImage(courseId, imageUrl) {
-  const img = new Image();
-  img.onload = () => {
-    document.querySelectorAll(`.course-thumb[data-course-id="${courseId}"]`).forEach(el => {
-      el.style.backgroundImage = `url('${imageUrl}')`;
-      el.style.backgroundColor = '#e8e8e8';
-      const emoji = el.querySelector('div[style*="font-size:50px"]');
-      if (emoji) emoji.remove();
-    });
-  };
-  // 로드 실패 시 이모지 fallback 유지 (아무것도 안 함)
-  img.src = imageUrl;
-}
 
 /* ─── 동적 코스 생성 (카카오 Places 기반) ─── */
 let dynamicCoursesLoaded = false;
@@ -2661,7 +2608,6 @@ async function loadDynamicCourses() {
             ],
             isDynamic: true, needsEnrichment: true
           });
-          fetchDynamicCourseImage(COURSES_DB[COURSES_DB.length - 1], place.place_url);
         }
       }
       if (--pending === 0) { renderCourses(false); checkUrlCourse(); }
@@ -2850,7 +2796,7 @@ loadEventsFromTourAPI();
 initLocation();
 setTimeout(() => { loadKakaoSDK(); checkUrlCourse(); checkUrlEvent(); checkUrlDyn(); }, 1500);
 setTimeout(() => { loadDynamicCourses(); }, 4000); // 위치·카카오 SDK 준비 후 동적 코스 로드
-setTimeout(() => { fetchCourseImages(); }, 2000); // 정적 코스 대표 이미지 로드
+
 </script>
 </body>
 </html>

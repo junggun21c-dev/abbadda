@@ -198,7 +198,7 @@ animation:snowFall 3s linear infinite;pointer-events:none;}
 .addr-save-btn{width:100%;background:#6C63FF;color:white;border:none;border-radius:12px;padding:13px;font-size:14px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;}
 .event-full-card{background:white;border:1px solid #E8E4DC;border-radius:16px;margin-bottom:12px;overflow:hidden;}
 .efc-top{display:flex;align-items:center;gap:12px;padding:12px 13px 10px;}
-.efc-emoji{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0;}
+.efc-emoji{width:64px;height:64px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0;background-size:cover;background-position:center;background-repeat:no-repeat;}
 .efc-info{flex:1;}
 .efc-name{font-size:15px;font-weight:700;color:#111;margin-bottom:3px;}
 .efc-meta{font-size:12px;color:#888;}
@@ -1430,7 +1430,7 @@ function openEventAll(){
       : `<span style="font-weight:700">${e.name}</span> ${rangeBadge}`;
     html+=`<div class="event-full-card" ${cardClick} style="${e.url?'cursor:pointer':''}">
       <div class="efc-top">
-        <div class="efc-emoji" style="background:${e.bg}">${e.emoji}</div>
+        <div class="efc-emoji" style="${e.image?`background-image:url('${e.image}');background-color:#f0f0f0`:`background:${e.bg}`}">${e.image?'':e.emoji}</div>
         <div class="efc-info">
           <div class="efc-name">${nameHtml}</div>
           <div class="efc-meta">📍 ${e.loc}</div>
@@ -2420,7 +2420,7 @@ function openPopupAll(){
       :`${p.name} ${inRange?'<span style="background:#EAFAF0;color:#187A3D;font-size:9px;padding:1px 6px;border-radius:6px;font-weight:700">범위 내</span>':''}`;
     html+=`<div class="event-full-card">
       <div class="efc-top">
-        <div class="efc-emoji" style="background:${p.bg}">${p.emoji}</div>
+        <div class="efc-emoji" style="${p.image?`background-image:url('${p.image}');background-color:#f0f0f0`:`background:${p.bg}`}">${p.image?'':p.emoji}</div>
         <div class="efc-info">
           <div class="efc-name">${nameHtml}</div>
           <div class="efc-meta">📍 ${p.loc}</div>

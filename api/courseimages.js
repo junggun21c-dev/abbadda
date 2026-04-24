@@ -32,14 +32,15 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   res.setHeader('Cache-Control', 's-maxage=86400, stale-while-revalidate=3600');
 
-  // ── 동적 코스 단건: Wikipedia → 카카오 → 네이버 → TourAPI ──
+  // ── 동적 코스 단건: 카카오 → Wikipedia → TourAPI → 네이버 ──
+  // (동적 코스는 소규모 로컬 장소가 많아 카카오 우선)
   if (req.query.place_id) {
     const keyword = req.query.keyword || '';
     const ckw = keyword ? cleanKeyword(decodeURIComponent(keyword)) : '';
-    let image = ckw ? await fetchWikipediaImage(ckw) : '';
-    if (!image) image = await fetchKakaoPlaceImage(req.query.place_id);
-    if (!image && ckw) image = await fetchNaverImage(ckw);
+    let image = await fetchKakaoPlaceImage(req.query.place_id);
+    if (!image && ckw) image = await fetchWikipediaImage(ckw);
     if (!image && ckw) image = await fetchTourImage(ckw);
+    if (!image && ckw) image = await fetchNaverImage(ckw);
     return res.status(200).json({ image: image || '' });
   }
 
@@ -87,8 +88,15 @@ async function fetchWikipediaImage(keyword) {
     const data = await resp.json();
     const pages = data?.query?.pages || {};
     const page = Object.values(pages)[0];
-    // pageid -1 = 문서 없음
     if (!page || page.pageid === -1) return '';
+
+    // 반환된 문서 제목이 검색어와 관련 없으면 버림
+    // (예: "하이브달달테마파크" 검색 → "하이브" 문서 → 타일 사진 방지)
+    const pageTitle = (page.title || '').toLowerCase();
+    const kwWords = keyword.toLowerCase().replace(/[^\w가-힣]/g, ' ').split(/\s+/).filter(w => w.length > 1);
+    const matched = kwWords.some(w => pageTitle.includes(w));
+    if (!matched) return '';
+
     return page.thumbnail?.source || '';
   } catch {
     return '';

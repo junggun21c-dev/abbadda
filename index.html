@@ -1420,7 +1420,7 @@ function openEventAll(){
   };
   const all = EVENTS_DB.filter(e => !isAdultOnly(e) && isEventActive(e))
     .sort((a,b) => endUrgency(a) - endUrgency(b) || childScore(a) - childScore(b) || (a.d??999) - (b.d??999));
-  let html=`<div class="sheet-title">📅 이번 주 전체 행사</div><div style="font-size:12px;color:#aaa;margin-bottom:1rem">총 ${all.length}개 행사</div>`;
+  let html=`<div class="sheet-title">📅 진행중 / 예정 행사</div><div style="font-size:12px;color:#aaa;margin-bottom:1rem">총 ${all.length}개 행사</div>`;
   all.forEach(e=>{
     const inRange=inDistRange(e.distMin);
     const rangeBadge = inRange ? '<span style="background:#EAFAF0;color:#187A3D;font-size:9px;padding:1px 6px;border-radius:6px;font-weight:700">범위 내</span>' : '';
@@ -2412,7 +2412,7 @@ function openPopupDetail(id){
 function openPopupAll(){
   const today=new Date(); today.setHours(0,0,0,0);
   const active=POPUPS_DB.filter(p=>!p.endDateRaw||new Date(p.endDateRaw)>=today);
-  let html=`<div class="sheet-title">🎪 이번 주 전체 팝업</div><div style="font-size:12px;color:#aaa;margin-bottom:1rem">총 ${active.length}개 팝업</div>`;
+  let html=`<div class="sheet-title">🎪 진행중 / 예정 팝업</div><div style="font-size:12px;color:#aaa;margin-bottom:1rem">총 ${active.length}개 팝업</div>`;
   active.forEach(p=>{
     const inRange=!p.distMin||inDistRange(p.distMin);
     const nameHtml=p.url

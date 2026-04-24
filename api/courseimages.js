@@ -30,9 +30,14 @@ export default async function handler(req, res) {
 
   const results = {};
   await Promise.all(keywords.map(async (kw) => {
-    const ckw = cleanKeyword(kw);
+    const ckw = cleanKeyword(kw); // "+ 부제목" 제거
     let image = await fetchNaverImage(ckw);
     if (!image) image = await fetchTourImage(ckw);
+    // 여전히 없으면 첫 번째 단어만으로 재시도 (예: "의왕 레일바이크" → "레일바이크")
+    if (!image) {
+      const shortKw = ckw.split(' ').slice(-1)[0];
+      if (shortKw && shortKw !== ckw) image = await fetchNaverImage(shortKw);
+    }
     if (image) results[kw] = image;
   }));
 
@@ -55,7 +60,7 @@ async function fetchTourImage(keyword) {
 
 async function fetchNaverImage(keyword) {
   try {
-    const url = `https://openapi.naver.com/v1/search/image.json?query=${encodeURIComponent(keyword)}&display=1&filter=large`;
+    const url = `https://openapi.naver.com/v1/search/image.json?query=${encodeURIComponent(keyword)}&display=3&filter=large`;
     const resp = await fetch(url, {
       headers: {
         'X-Naver-Client-Id': NAVER_CLIENT_ID,
@@ -65,7 +70,8 @@ async function fetchNaverImage(keyword) {
     });
     if (!resp.ok) return '';
     const data = await resp.json();
-    return data?.items?.[0]?.link || '';
+    // thumbnail은 네이버 CDN 호스팅이라 핫링크 차단 없음
+    return data?.items?.[0]?.thumbnail || data?.items?.[0]?.link || '';
   } catch {
     return '';
   }

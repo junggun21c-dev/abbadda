@@ -1,5 +1,5 @@
 // 코스 대표 이미지 조회
-// 우선순위: 카카오 og:image → TourAPI → 네이버 이미지 검색
+// 우선순위: 네이버 이미지 검색 → 카카오 og:image → TourAPI
 
 const TOUR_KEY = '7cd0819411acef067d0cc1ab73350bb7105cde8c2fd3de620bec99e518953f95';
 const NAVER_CLIENT_ID = 'ioZXkMir4q45hSe5NjQx';
@@ -15,24 +15,24 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   res.setHeader('Cache-Control', 's-maxage=86400, stale-while-revalidate=3600');
 
-  // 카카오 장소 단건 이미지 (없으면 TourAPI → 네이버 순으로 폴백)
+  // 카카오 장소 단건 이미지: 네이버 → 카카오 → TourAPI 순
   if (req.query.place_id) {
     const keyword = req.query.keyword || '';
-    let image = await fetchKakaoPlaceImage(req.query.place_id);
+    let image = keyword ? await fetchNaverImage(cleanKeyword(keyword)) : '';
+    if (!image) image = await fetchKakaoPlaceImage(req.query.place_id);
     if (!image && keyword) image = await fetchTourImage(cleanKeyword(keyword));
-    if (!image && keyword) image = await fetchNaverImage(cleanKeyword(keyword));
     return res.status(200).json({ image: image || '' });
   }
 
-  // 코스 제목 bulk 이미지: TourAPI 우선, 없으면 네이버
+  // 코스 제목 bulk 이미지: 네이버 → TourAPI 순
   const keywords = (req.query.keywords || '').split('|').map(s => s.trim()).filter(Boolean);
   if (!keywords.length) return res.status(200).json({});
 
   const results = {};
   await Promise.all(keywords.map(async (kw) => {
     const ckw = cleanKeyword(kw);
-    let image = await fetchTourImage(ckw);
-    if (!image) image = await fetchNaverImage(ckw);
+    let image = await fetchNaverImage(ckw);
+    if (!image) image = await fetchTourImage(ckw);
     if (image) results[kw] = image;
   }));
 

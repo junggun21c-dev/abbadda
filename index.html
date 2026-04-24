@@ -89,7 +89,7 @@ animation:snowFall 3s linear infinite;pointer-events:none;}
 @keyframes spin{to{transform:rotate(360deg);}}
 .course-card{background:white;border:1px solid #E8E4DC;border-radius:20px;margin-bottom:1rem;overflow:hidden;cursor:pointer;transition:transform 0.15s;box-shadow:0 2px 10px rgba(0,0,0,0.05);}
 .course-card:active{transform:scale(0.985);}
-.course-thumb{width:100%;height:155px;display:flex;align-items:center;justify-content:center;font-size:50px;position:relative;}
+.course-thumb{width:100%;height:155px;display:flex;align-items:center;justify-content:center;font-size:50px;position:relative;background-size:cover;background-position:center;background-repeat:no-repeat;}
 .time-badge{position:absolute;top:12px;left:12px;background:rgba(0,0,0,0.55);color:white;font-size:11px;padding:4px 10px;border-radius:12px;font-weight:500;}
 .cost-badge{position:absolute;bottom:12px;left:12px;background:rgba(255,255,255,0.92);color:#444;font-size:10px;padding:3px 9px;border-radius:10px;font-weight:600;}
 .fav-btn{position:absolute;top:10px;right:12px;background:white;border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-size:15px;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.12);border:none;}
@@ -1609,8 +1609,8 @@ function courseCardHTML(c,i,animate){
   });
   const flowHtml=flowChips.map((chip,j)=>j<flowChips.length-1?chip+`<span class="sf-arrow">→</span>`:chip).join('')+(c.stops.length>maxShow?`<span class="sf-more">+${c.stops.length-maxShow}</span>`:'');
   return `<div class="course-card${animate?' fade-in':''}" style="${animate?`animation-delay:${i*0.07}s`:''}" onclick="openCourse(${realIdx})">
-    <div class="course-thumb" style="background:${c.bg}">
-      <div style="font-size:50px">${c.emoji}</div>
+    <div class="course-thumb" style="${c.image?`background-image:url('${c.image}');background-color:#e8e8e8`:`background:${c.bg}`}">
+      ${c.image?'':` <div style="font-size:50px">${c.emoji}</div>`}
       <div class="time-badge">🚗 ${c.drive}</div>
       ${c.cost?`<div class="cost-badge">💰 ${c.cost}</div>`:''}
       <button class="fav-btn" onclick="event.stopPropagation();toggleFav(${realIdx},this)">${favs.has(realIdx)?'❤️':'🤍'}</button>
@@ -2312,8 +2312,8 @@ function renderFavPage(){
     });
     const flowHtml=flowChips.map((chip,j)=>j<flowChips.length-1?chip+`<span class="sf-arrow">→</span>`:chip).join('')+(c.stops.length>3?`<span class="sf-more">+${c.stops.length-3}</span>`:'');
     return `<div class="course-card fade-in" style="animation-delay:${saved.indexOf({idx,course:c})*0.06}s" onclick="openCourse(${idx})">
-      <div class="course-thumb" style="background:${c.bg}">
-        <div style="font-size:50px">${c.emoji}</div>
+      <div class="course-thumb" style="${c.image?`background-image:url('${c.image}');background-color:#e8e8e8`:`background:${c.bg}`}">
+        ${c.image?'':` <div style="font-size:50px">${c.emoji}</div>`}
         <div class="time-badge">🚗 ${c.drive}</div>
         ${c.cost?`<div class="cost-badge">💰 ${c.cost}</div>`:''}
         <button class="fav-btn" onclick="event.stopPropagation();removeFav(${idx},this)">❤️</button>
@@ -2512,6 +2512,34 @@ async function buildCourseWithPopup(popupId){
   showToast(restaurant?`${restaurant.place_name} 등 실제 맛집을 찾았어요! 🎉`:'팝업 코스를 생성했어요! 🎪');
 }
 
+/* ─── 코스 대표 이미지 로드 ─── */
+async function fetchCourseImages() {
+  // 정적 코스: TourAPI keyword 검색으로 이미지 일괄 조회
+  const staticCourses = COURSES_DB.filter(c => !c.isDynamic && !c.image);
+  if (staticCourses.length) {
+    const keywords = staticCourses.map(c => c.title).join('|');
+    try {
+      const resp = await fetch(`/api/courseimages?keywords=${encodeURIComponent(keywords)}`);
+      const images = await resp.json();
+      let updated = false;
+      COURSES_DB.forEach(c => {
+        if (!c.isDynamic && images[c.title]) { c.image = images[c.title]; updated = true; }
+      });
+      if (updated) renderCourses(false);
+    } catch {}
+  }
+}
+
+async function fetchDynamicCourseImage(course, placeUrl) {
+  const idMatch = placeUrl && placeUrl.match(/\/(\d+)$/);
+  if (!idMatch) return;
+  try {
+    const resp = await fetch(`/api/courseimages?place_id=${idMatch[1]}`);
+    const data = await resp.json();
+    if (data.image) { course.image = data.image; renderCourses(false); }
+  } catch {}
+}
+
 /* ─── 동적 코스 생성 (카카오 Places 기반) ─── */
 let dynamicCoursesLoaded = false;
 
@@ -2606,6 +2634,7 @@ async function loadDynamicCourses() {
             ],
             isDynamic: true, needsEnrichment: true
           });
+          fetchDynamicCourseImage(COURSES_DB[COURSES_DB.length - 1], place.place_url);
         }
       }
       if (--pending === 0) { renderCourses(false); checkUrlCourse(); }
@@ -2794,6 +2823,7 @@ loadEventsFromTourAPI();
 initLocation();
 setTimeout(() => { loadKakaoSDK(); checkUrlCourse(); checkUrlEvent(); checkUrlDyn(); }, 1500);
 setTimeout(() => { loadDynamicCourses(); }, 4000); // 위치·카카오 SDK 준비 후 동적 코스 로드
+setTimeout(() => { fetchCourseImages(); }, 2000); // 정적 코스 대표 이미지 로드
 </script>
 </body>
 </html>

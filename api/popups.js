@@ -121,9 +121,11 @@ async function fetchPopupPage(id, todayStr, futureLimit) {
     const lat = latMatch ? parseFloat(latMatch[0]) : null;
     const lng = lngMatch ? parseFloat(lngMatch[0]) : null;
 
-    // 대표 이미지
-    const imgMatch = html.match(/content="(https:\/\/[^"]*\.(?:jpg|jpeg|png|webp)[^"]*)"/i);
-    const image = imgMatch ? imgMatch[1] : '';
+    // 대표 이미지 (og:image 우선, 없으면 첫 번째 이미지 URL)
+    const ogImgMatch = html.match(/property="og:image"\s+content="([^"]+)"/i)
+                    || html.match(/content="([^"]+)"\s+property="og:image"/i);
+    const fallbackImgMatch = html.match(/content="(https:\/\/[^"]*\.(?:jpg|jpeg|png|webp)[^"]*)"/i);
+    const image = ogImgMatch ? ogImgMatch[1] : (fallbackImgMatch ? fallbackImgMatch[1] : '');
 
     return {
       id: `popply_${id}`,

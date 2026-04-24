@@ -1,13 +1,30 @@
 // 코스 대표 이미지 조회
-// 우선순위: 네이버 이미지 검색 → 카카오 og:image → TourAPI
+// 정적 코스(bulk): TourAPI → 네이버 (동시 5개 제한)
+// 동적 코스(place_id): 카카오 → 네이버 → TourAPI
 
 const TOUR_KEY = '7cd0819411acef067d0cc1ab73350bb7105cde8c2fd3de620bec99e518953f95';
 const NAVER_CLIENT_ID = 'ioZXkMir4q45hSe5NjQx';
 const NAVER_CLIENT_SECRET = 'mqfNVKWzGo';
 
-// "남산 N서울타워 + 케이블카" → "남산 N서울타워" (검색 정확도 향상)
+// "홍천 수리산 + 공작산 산내음" → "수리산"  (도시명 + 부제목 제거)
 function cleanKeyword(kw) {
-  return kw.replace(/\s*[+&]\s*.+$/, '').trim();
+  let k = kw.replace(/\s*[+&]\s*.+$/, '').trim(); // "+ 부제목" 제거
+  // 앞에 붙은 도시/지역명 제거 (예: "과천 서울대공원" → "서울대공원")
+  k = k.replace(/^(서울|부산|대구|인천|광주|대전|울산|세종|경기|강원|충북|충남|전북|전남|경북|경남|제주|수원|과천|성남|안양|안산|고양|용인|파주|이천|양평|남양주|의왕|가평|포천|연천|춘천|강릉|속초|홍천|양주|화성|안성|평택|시흥|광명|오산|하남|의정부|구리|군포|광주|여주|동두천)\s+/, '').trim();
+  return k;
+}
+
+// 동시 실행 제한 (max N개)
+function pLimit(concurrency) {
+  let running = 0;
+  const queue = [];
+  const next = () => {
+    if (running >= concurrency || !queue.length) return;
+    running++;
+    const { fn, resolve, reject } = queue.shift();
+    fn().then(resolve, reject).finally(() => { running--; next(); });
+  };
+  return (fn) => new Promise((resolve, reject) => { queue.push({ fn, resolve, reject }); next(); });
 }
 
 export default async function handler(req, res) {
@@ -15,31 +32,42 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   res.setHeader('Cache-Control', 's-maxage=86400, stale-while-revalidate=3600');
 
-  // 카카오 장소 단건 이미지: 네이버 → 카카오 → TourAPI 순
+  // ── 동적 코스 단건: 카카오 → 네이버 → TourAPI ──
   if (req.query.place_id) {
     const keyword = req.query.keyword || '';
-    let image = keyword ? await fetchNaverImage(cleanKeyword(keyword)) : '';
-    if (!image) image = await fetchKakaoPlaceImage(req.query.place_id);
-    if (!image && keyword) image = await fetchTourImage(cleanKeyword(keyword));
+    const ckw = keyword ? cleanKeyword(decodeURIComponent(keyword)) : '';
+    let image = await fetchKakaoPlaceImage(req.query.place_id);
+    if (!image && ckw) image = await fetchNaverImage(ckw);
+    if (!image && ckw) image = await fetchTourImage(ckw);
     return res.status(200).json({ image: image || '' });
   }
 
-  // 코스 제목 bulk 이미지: 네이버 → TourAPI 순
+  // ── 정적 코스 bulk: TourAPI 우선, 없는 것만 네이버 (5개 병렬 제한) ──
   const keywords = (req.query.keywords || '').split('|').map(s => s.trim()).filter(Boolean);
   if (!keywords.length) return res.status(200).json({});
 
+  const limit = pLimit(5);
   const results = {};
-  await Promise.all(keywords.map(async (kw) => {
-    const ckw = cleanKeyword(kw); // "+ 부제목" 제거
+
+  // 1차: TourAPI 병렬 (빠르고 안정적)
+  await Promise.all(keywords.map(kw => limit(async () => {
+    const ckw = cleanKeyword(kw);
+    const image = await fetchTourImage(ckw);
+    if (image) results[kw] = image;
+  })));
+
+  // 2차: TourAPI에서 못 찾은 것만 네이버로 (동시 5개 제한)
+  const missing = keywords.filter(kw => !results[kw]);
+  await Promise.all(missing.map(kw => limit(async () => {
+    const ckw = cleanKeyword(kw);
     let image = await fetchNaverImage(ckw);
-    if (!image) image = await fetchTourImage(ckw);
-    // 여전히 없으면 첫 번째 단어만으로 재시도 (예: "의왕 레일바이크" → "레일바이크")
+    // 여전히 없으면 마지막 단어만으로 재시도 (예: "레일바이크")
     if (!image) {
-      const shortKw = ckw.split(' ').slice(-1)[0];
-      if (shortKw && shortKw !== ckw) image = await fetchNaverImage(shortKw);
+      const lastWord = ckw.split(' ').pop();
+      if (lastWord && lastWord !== ckw) image = await fetchNaverImage(lastWord);
     }
     if (image) results[kw] = image;
-  }));
+  })));
 
   return res.status(200).json(results);
 }
@@ -60,7 +88,7 @@ async function fetchTourImage(keyword) {
 
 async function fetchNaverImage(keyword) {
   try {
-    const url = `https://openapi.naver.com/v1/search/image.json?query=${encodeURIComponent(keyword)}&display=3&filter=large`;
+    const url = `https://openapi.naver.com/v1/search/image.json?query=${encodeURIComponent(keyword)}&display=5&filter=large&sort=sim`;
     const resp = await fetch(url, {
       headers: {
         'X-Naver-Client-Id': NAVER_CLIENT_ID,
@@ -70,9 +98,13 @@ async function fetchNaverImage(keyword) {
     });
     if (!resp.ok) return '';
     const data = await resp.json();
-    // thumbnail을 w640 고화질로 업스케일 (네이버 CDN 지원)
-    const thumb = data?.items?.[0]?.thumbnail || '';
-    return thumb ? thumb.replace(/type=b\d+/, 'type=w640') : (data?.items?.[0]?.link || '');
+    if (!data?.items?.length) return '';
+    // 가장 큰 이미지 선택
+    const best = data.items.reduce((a, b) =>
+      (parseInt(b.sizewidth) * parseInt(b.sizeheight)) > (parseInt(a.sizewidth) * parseInt(a.sizeheight)) ? b : a
+    );
+    const thumb = best.thumbnail || '';
+    return thumb ? thumb.replace(/type=b\d+/, 'type=w640') : (best.link || '');
   } catch {
     return '';
   }

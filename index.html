@@ -2529,15 +2529,28 @@ async function fetchCourseImages() {
   } catch {}
 }
 
+// 동적 코스 이미지 호출 큐 (동시 5개 제한)
+const _dynImgQueue = [];
+let _dynImgRunning = 0;
+function _dynImgNext() {
+  if (_dynImgRunning >= 5 || !_dynImgQueue.length) return;
+  _dynImgRunning++;
+  const { fn } = _dynImgQueue.shift();
+  fn().finally(() => { _dynImgRunning--; _dynImgNext(); });
+}
+
 async function fetchDynamicCourseImage(course, placeUrl) {
-  const idMatch = placeUrl && placeUrl.match(/\/(\d+)$/);
-  if (!idMatch) return;
-  try {
-    const keyword = encodeURIComponent(course.title.replace(/\s*코스$/, ''));
-    const resp = await fetch(`/api/courseimages?place_id=${idMatch[1]}&keyword=${keyword}`);
-    const data = await resp.json();
-    if (data.image) { course.image = data.image; applyCourseThumbImage(course.id, data.image); }
-  } catch {}
+  _dynImgQueue.push({ fn: async () => {
+    const idMatch = placeUrl && placeUrl.match(/\/(\d+)$/);
+    if (!idMatch) return;
+    try {
+      const keyword = encodeURIComponent(course.title.replace(/\s*코스$/, ''));
+      const resp = await fetch(`/api/courseimages?place_id=${idMatch[1]}&keyword=${keyword}`);
+      const data = await resp.json();
+      if (data.image) { course.image = data.image; applyCourseThumbImage(course.id, data.image); }
+    } catch {}
+  }});
+  _dynImgNext();
 }
 
 function applyCourseThumbImage(courseId, imageUrl) {

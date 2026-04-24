@@ -70,8 +70,9 @@ async function fetchNaverImage(keyword) {
     });
     if (!resp.ok) return '';
     const data = await resp.json();
-    // thumbnail은 네이버 CDN 호스팅이라 핫링크 차단 없음
-    return data?.items?.[0]?.thumbnail || data?.items?.[0]?.link || '';
+    // thumbnail을 w640 고화질로 업스케일 (네이버 CDN 지원)
+    const thumb = data?.items?.[0]?.thumbnail || '';
+    return thumb ? thumb.replace(/type=b\d+/, 'type=w640') : (data?.items?.[0]?.link || '');
   } catch {
     return '';
   }

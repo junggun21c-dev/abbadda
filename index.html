@@ -75,7 +75,7 @@ animation:snowFall 3s linear infinite;pointer-events:none;}
 .event-scroll::-webkit-scrollbar{display:none;}
 .event-card{flex-shrink:0;width:155px;background:white;border:1px solid #E8E4DC;border-radius:16px;overflow:hidden;cursor:pointer;transition:transform 0.15s;box-shadow:0 2px 6px rgba(0,0,0,0.04);}
 .event-card:active{transform:scale(0.97);}
-.event-thumb{height:80px;display:flex;align-items:center;justify-content:center;font-size:34px;}
+.event-thumb{height:100px;display:flex;align-items:center;justify-content:center;font-size:34px;background-size:cover;background-position:center;background-repeat:no-repeat;}
 .event-body{padding:9px 10px 11px;}
 .event-name{font-size:13px;font-weight:700;color:#222;margin-bottom:3px;line-height:1.35;}
 .event-date{font-size:12px;color:#6C63FF;font-weight:600;}
@@ -1135,6 +1135,7 @@ async function loadEventsFromTourAPI() {
           endDateRaw:   endDate.length===8   ? `${endDate.slice(0,4)}-${endDate.slice(4,6)}-${endDate.slice(6,8)}` : null,
           verified: true, contentId: item.contentid,
           url: item.url || '',
+          image: item.firstimage || '',
           codename: item.codename || '',
           isDDP: !!item.isDDP
         };
@@ -1354,7 +1355,7 @@ function renderEvents(){
   const list=(soon.length>0?soon:all).slice(0,8);
   el.innerHTML= list.map((e,i)=>`
     <div class="event-card" onclick="openEventDetail(${e.id})">
-      <div class="event-thumb" style="background:${e.bg}">${e.emoji}</div>
+      <div class="event-thumb" style="${e.image?`background-image:url('${e.image}');background-color:#f0f0f0`:`background:${e.bg}`}">${e.image?'':e.emoji}</div>
       <div class="event-body">
         <div class="event-name">${e.name}${e.url?`<a href="${e.url}" target="_blank" onclick="event.stopPropagation()" style="margin-left:4px;color:#6C63FF;font-size:11px;text-decoration:none">↗</a>`:''}</div>
         <div class="event-date">${e.date}</div>
@@ -2384,7 +2385,7 @@ function renderPopups(){
   el.innerHTML='';
   el.innerHTML=active.map(p=>`
     <div class="event-card" onclick="openPopupDetail(${p.id})">
-      <div class="event-thumb" style="background:${p.bg}"><span style="font-size:34px">${p.emoji}</span></div>
+      <div class="event-thumb" style="${p.image?`background-image:url('${p.image}');background-color:#f0f0f0`:`background:${p.bg}`}">${p.image?'':p.emoji}</div>
       <div class="event-body">
         <div class="event-name">${p.name}</div>
         <div class="event-date">${p.date}</div>

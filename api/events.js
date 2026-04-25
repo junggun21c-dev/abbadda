@@ -99,20 +99,23 @@ export default async function handler(req, res) {
 
   // ── 3) 전국문화축제표준데이터 (공공데이터포털 · 지자체 소규모 축제 보완) ──
   // 지역 필터 파라미터 미지원 → 전체 1,269건을 2페이지로 병렬 fetch, insttNm으로 지역 필터
+  let _fstvlDebug = { sidos: [], page1: null, page2: null, matched: 0, error: null };
   const fetchPublicFestival = async () => {
     const sidos = [...new Set(codes.map(c => AREA_TO_SIDO[c]).filter(Boolean))];
+    _fstvlDebug.sidos = sidos;
     if (sidos.length === 0) return;
     try {
       const pageResults = await Promise.all([1, 2].map(pageNo =>
         fetch(`https://api.data.go.kr/openapi/tn_pubr_public_cltur_fstvl_api?serviceKey=${TOUR_KEY}&pageNo=${pageNo}&numOfRows=1000&type=json`)
           .then(r => r.ok ? r.json() : null).catch(() => null)
       ));
+      _fstvlDebug.page1 = pageResults[0]?.response?.header || 'null';
+      _fstvlDebug.page2 = pageResults[1]?.response?.header || 'null';
       for (const data of pageResults) {
         const items = data?.response?.body?.items;
         if (!items) continue;
         const arr = Array.isArray(items) ? items : [items];
         for (const item of arr) {
-          // insttNm 기준 지역 필터 (예: "경상남도 의령군" → 요청 시도명으로 시작하는지 확인)
           const insttNm = item.insttNm || '';
           if (!sidos.some(sido => insttNm.startsWith(sido))) continue;
           const endDate = String(item.fstvlEndDate || '').replace(/-/g, '');
@@ -123,6 +126,7 @@ export default async function handler(req, res) {
           const key = 'fstvl_' + title + startDate;
           if (seen.has(key)) continue;
           seen.add(key);
+          _fstvlDebug.matched++;
           allItems.push({
             title,
             eventstartdate: startDate,
@@ -139,7 +143,7 @@ export default async function handler(req, res) {
           });
         }
       }
-    } catch {}
+    } catch(e) { _fstvlDebug.error = e.message; }
   };
 
   // 병렬 호출
@@ -171,5 +175,5 @@ export default async function handler(req, res) {
     return aStart < bStart ? -1 : aStart > bStart ? 1 : 0;
   });
 
-  return res.status(200).json({ items: allItems, total: allItems.length });
+  return res.status(200).json({ items: allItems, total: allItems.length, _debug: _fstvlDebug });
 }

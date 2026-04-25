@@ -970,27 +970,38 @@ const EVENT_BGS = ['#FFF0F5','#FFF8E6','#EEF2FF','#EAFAF0','#EDE8F5','#E3F2FD','
 let EVENTS_DB = [];
 let tourApiLoaded = false;
 
-/* homeAddr → TourAPI areaCode 변환 */
+/* homeAddr → TourAPI areaCode 변환 (전국 시/군/구 전체 커버) */
 function getAreaCodesFromAddr(addr) {
   const codes = new Set();
   const a = addr || '';
+  // 광역시·특별시·특별자치시
   if(a.includes('서울')) codes.add('1');
   if(a.includes('인천')) codes.add('2');
   if(a.includes('대전')) codes.add('3');
   if(a.includes('대구')) codes.add('4');
-  if(a.includes('광주')) codes.add('5');
+  if(a.match(/광주(?!시|군)/) || a.match(/광주광역/)) codes.add('5'); // 광주광역시만 (경기 광주시 제외)
   if(a.includes('부산')) codes.add('6');
   if(a.includes('울산')) codes.add('7');
   if(a.includes('세종')) codes.add('8');
-  if(a.match(/경기|수원|성남|분당|판교|의정부|안양|부천|광명|평택|안산|고양|일산|과천|구리|남양주|오산|시흥|군포|의왕|하남|용인|파주|이천|안성|김포|화성|동탄|양주|포천|여주|가평|양평|연천|광교|정자|야탑|수지|기흥/)) codes.add('31');
-  if(a.match(/강원|춘천|원주|강릉|동해|태백|속초|삼척/)) codes.add('32');
-  if(a.match(/충북|청주|충주|제천/)) codes.add('33');
-  if(a.match(/충남|천안|공주|보령|아산|서산|논산/)) codes.add('34');
-  if(a.match(/경북|포항|경주|김천|안동|구미/)) codes.add('35');
-  if(a.match(/경남|창원|진주|통영|사천|김해/)) codes.add('36');
-  if(a.match(/전북|전주|군산|익산/)) codes.add('37');
-  if(a.match(/전남|목포|여수|순천|나주/)) codes.add('38');
-  if(a.includes('제주')) codes.add('39');
+  // 경기도 — 전체 시/군
+  if(a.match(/경기|수원|성남|분당|판교|의정부|안양|부천|광명|평택|동두천|안산|고양|일산|과천|구리|남양주|오산|시흥|군포|의왕|하남|용인|파주|이천|안성|김포|화성|동탄|양주|포천|여주|가평|양평|연천|광교|정자|야탑|수지|기흥|하남|의왕|광주시|광주군/)) codes.add('31');
+  // 강원특별자치도 — 전체 시/군
+  if(a.match(/강원|춘천|원주|강릉|동해|태백|속초|삼척|홍천|횡성|영월|평창|정선|철원|화천|양구|인제|고성군|양양/)) codes.add('32');
+  // 충청북도 — 전체 시/군
+  if(a.match(/충북|청주|충주|제천|보은|옥천|영동|증평|진천|괴산|음성|단양/)) codes.add('33');
+  // 충청남도 — 전체 시/군
+  if(a.match(/충남|천안|공주|보령|아산|서산|논산|계룡|당진|금산|부여|서천|청양|홍성|예산|태안/)) codes.add('34');
+  // 경상북도 — 전체 시/군
+  if(a.match(/경북|포항|경주|김천|안동|구미|영주|영천|상주|문경|경산|군위|의성|청송|영양|영덕|청도|고령|성주|칠곡|예천|봉화|울진|울릉/)) codes.add('35');
+  // 경상남도 — 전체 시/군
+  if(a.match(/경남|창원|진주|통영|사천|김해|밀양|거제|양산|의령|함안|창녕|고성시|남해|하동|산청|함양|거창|합천/)) codes.add('36');
+  // 전북특별자치도 — 전체 시/군
+  if(a.match(/전북|전주|군산|익산|정읍|남원|김제|완주|진안|무주|장수|임실|순창|고창|부안/)) codes.add('37');
+  // 전라남도 — 전체 시/군
+  if(a.match(/전남|목포|여수|순천|나주|광양|담양|곡성|구례|고흥|보성|화순|장흥|강진|해남|영암|무안|함평|영광|장성|완도|진도|신안/)) codes.add('38');
+  // 제주특별자치도
+  if(a.match(/제주|서귀포/)) codes.add('39');
+  // 매칭 없으면 기본값(서울·경기·인천) — 출발지 미설정 상태
   if(codes.size === 0) { codes.add('1'); codes.add('31'); codes.add('2'); }
   // 경기도 거주자는 서울/인천 행사도 포함
   if(codes.has('31')) { codes.add('1'); codes.add('2'); }

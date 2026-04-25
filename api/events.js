@@ -98,82 +98,46 @@ export default async function handler(req, res) {
   };
 
   // ── 3) 전국문화축제표준데이터 (공공데이터포털 · 지자체 소규모 축제 보완) ──
-  const fetchPublicFestival = async (sidoName) => {
+  // 지역 필터 파라미터 미지원 → 전체 1,269건을 2페이지로 병렬 fetch, insttNm으로 지역 필터
+  const fetchPublicFestival = async () => {
+    const sidos = [...new Set(codes.map(c => AREA_TO_SIDO[c]).filter(Boolean))];
+    if (sidos.length === 0) return;
     try {
-      const url = `http://api.data.go.kr/openapi/tn_pubr_public_cltur_fstvl_api`
-        + `?serviceKey=${TOUR_KEY}&pageNo=1&numOfRows=1000&type=json`
-        + `&fstvlStartDate=${startFrom}&ctprvnNm=${encodeURIComponent(sidoName)}`;
-      const resp = await fetch(url);
-      if (!resp.ok) return;
-      const data = await resp.json();
-      const items = data?.response?.body?.items?.item;
-      if (!items) return;
-      const arr = Array.isArray(items) ? items : [items];
-      for (const item of arr) {
-        const endDate = String(item.fstvlEndDate || '').replace(/-/g, '');
-        if (endDate.length === 8 && endDate < todayCompact) continue;
-        const startDate = String(item.fstvlStartDate || '').replace(/-/g, '');
-        const title = item.fstvlNm || '';
-        if (!title) continue;
-        // TourAPI와 중복 방지: 제목+시작일 기준
-        const key = 'fstvl_' + title + startDate;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        const addr = item.rdnmadr || item.lnmadr || '';
-        allItems.push({
-          title,
-          eventstartdate: startDate,
-          eventenddate: endDate,
-          addr1: addr,
-          mapy: item.latitude || null,
-          mapx: item.longitude || null,
-          contentid: key,
-          firstimage: '',
-          url: item.homepageUrl || '',
-          usefee: '',
-          usetimefestival: '',
-          codename: '축제',
-        });
-      }
-    } catch {}
-  };
-
-  // ── 4) 전국공연행사정보표준데이터 (공공데이터포털 · 공연/행사 보완) ──
-  const fetchPublicEvent = async (sidoName) => {
-    try {
-      const url = `http://api.data.go.kr/openapi/tn_pubr_public_pblprfr_event_info_api`
-        + `?serviceKey=${TOUR_KEY}&pageNo=1&numOfRows=1000&type=json`
-        + `&pblprfrStartDate=${startFrom}&ctprvnNm=${encodeURIComponent(sidoName)}`;
-      const resp = await fetch(url);
-      if (!resp.ok) return;
-      const data = await resp.json();
-      const items = data?.response?.body?.items?.item;
-      if (!items) return;
-      const arr = Array.isArray(items) ? items : [items];
-      for (const item of arr) {
-        const endDate = String(item.pblprfrEndDate || '').replace(/-/g, '');
-        if (endDate.length === 8 && endDate < todayCompact) continue;
-        const startDate = String(item.pblprfrStartDate || '').replace(/-/g, '');
-        const title = item.pblprfrNm || '';
-        if (!title) continue;
-        const key = 'pblprfr_' + title + startDate;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        const addr = item.rdnmadr || item.lnmadr || item.pblprfrPlaceNm || '';
-        allItems.push({
-          title,
-          eventstartdate: startDate,
-          eventenddate: endDate,
-          addr1: addr,
-          mapy: item.latitude || null,
-          mapx: item.longitude || null,
-          contentid: key,
-          firstimage: '',
-          url: item.homepageUrl || '',
-          usefee: '',
-          usetimefestival: '',
-          codename: item.pblprfrSe || '공연행사',
-        });
+      const pageResults = await Promise.all([1, 2].map(pageNo =>
+        fetch(`https://api.data.go.kr/openapi/tn_pubr_public_cltur_fstvl_api?serviceKey=${TOUR_KEY}&pageNo=${pageNo}&numOfRows=1000&type=json`)
+          .then(r => r.ok ? r.json() : null).catch(() => null)
+      ));
+      for (const data of pageResults) {
+        const items = data?.response?.body?.items;
+        if (!items) continue;
+        const arr = Array.isArray(items) ? items : [items];
+        for (const item of arr) {
+          // insttNm 기준 지역 필터 (예: "경상남도 의령군" → 요청 시도명으로 시작하는지 확인)
+          const insttNm = item.insttNm || '';
+          if (!sidos.some(sido => insttNm.startsWith(sido))) continue;
+          const endDate = String(item.fstvlEndDate || '').replace(/-/g, '');
+          if (endDate.length === 8 && endDate < todayCompact) continue;
+          const startDate = String(item.fstvlStartDate || '').replace(/-/g, '');
+          const title = item.fstvlNm || '';
+          if (!title) continue;
+          const key = 'fstvl_' + title + startDate;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          allItems.push({
+            title,
+            eventstartdate: startDate,
+            eventenddate: endDate,
+            addr1: item.rdnmadr || item.lnmadr || '',
+            mapy: item.latitude || null,
+            mapx: item.longitude || null,
+            contentid: key,
+            firstimage: '',
+            url: item.homepageUrl || '',
+            usefee: '',
+            usetimefestival: '',
+            codename: '축제',
+          });
+        }
       }
     } catch {}
   };
@@ -187,14 +151,8 @@ export default async function handler(req, res) {
     // 서울 포함 요청 시, 경기(31)가 없으면 추가
     if (codes.includes('1') && !tourCodes.includes('31')) tasks.push(fetchTour('31'));
     if (tasks.length === 0) tasks.push(fetchTour('1'));
-    // 공공데이터 표준데이터: 요청된 모든 지역 병렬 호출
-    for (const code of codes) {
-      const sido = AREA_TO_SIDO[code];
-      if (sido) {
-        tasks.push(fetchPublicFestival(sido));
-        tasks.push(fetchPublicEvent(sido));
-      }
-    }
+    // 전국문화축제표준데이터: 요청 1회로 전체 fetch 후 지역 필터
+    tasks.push(fetchPublicFestival());
     await Promise.all(tasks);
   } catch(e) {
     return res.status(200).json({ items: [], total: 0, error: e.message });

@@ -161,6 +161,7 @@ animation:snowFall 3s linear infinite;pointer-events:none;}
 .info-badge.admis{background:#F3F2F0;color:#666;}
 .info-badge.hrs{background:#F3F2F0;color:#666;}
 .info-badge.park{background:#3D3D3D;color:#fff;}
+.info-badge.nopark{background:#F3F2F0;color:#999;}
 .tl-tip{font-size:12px;color:#555;background:#F8F7F5;border-radius:8px;padding:6px 10px;margin-top:6px;line-height:1.6;border-left:3px solid #C4B5FD;}
 .tl-chip{display:inline-flex;align-items:center;font-size:10px;padding:2px 8px;border-radius:6px;font-weight:500;flex-shrink:0;}
 .tl-chip.food{background:#F3F2F0;color:#888;}
@@ -1719,12 +1720,12 @@ function renderCourseDetail(){
           ${s.type!=='place'?`<button class="chg-btn" id="chgBtn${i}" onclick="changeStep(${i})">🔄 변경</button>`:''}
         </div>
         <div class="tl-desc">${s.desc}</div>
-        ${(s.naverRating||s.admission||s.hours||s.parking===true)?`
+        ${(s.naverRating||s.admission||s.hours||s.parking!==undefined)?`
         <div class="tl-info-row">
           ${s.naverRating?`<span class="info-badge nrating">★ ${s.naverRating}${s.reviewCount?' ('+s.reviewCount+')':''}</span>`:''}
           ${s.admission?`<span class="info-badge admis">💰 ${s.admission}</span>`:''}
           ${s.hours?`<span class="info-badge hrs">⏰ ${s.hours}</span>`:''}
-          ${s.parking===true?`<span class="info-badge park">🅿 주차가능</span>`:''}
+          ${s.parking===true?`<span class="info-badge park">🅿 주차가능</span>`:(s.parking===false?`<span class="info-badge nopark">🅿 주차불가</span>`:'')}
         </div>`:''}
         ${s.tip?`<div class="tl-tip">💡 ${s.tip}</div>`:''}
         <div class="place-links">
@@ -2656,9 +2657,9 @@ async function loadDynamicCourses() {
             timeline: [
               { type:'place', place:place.place_name, lat:pLat, lng:pLng,
                 desc:`📍 ${addr}${place.phone?' · ☎ '+place.phone:''}`,
-                hours:'운영시간 카카오맵 확인', tip:'방문 전 운영시간을 꼭 확인하세요', kakaoUrl:place.place_url },
-              { type:'food', place:'주변 맛집', lat:null, lng:null, desc:'맛집 정보를 불러오는 중...', needsSearch:true },
-              { type:'cafe', place:'주변 카페', lat:null, lng:null, desc:'카페 정보를 불러오는 중...', needsSearch:true }
+                hours:'운영시간 카카오맵 확인', tip:'방문 전 운영시간을 꼭 확인하세요', kakaoUrl:place.place_url, parking:true },
+              { type:'food', place:'주변 맛집', lat:null, lng:null, desc:'맛집 정보를 불러오는 중...', needsSearch:true, parking:true },
+              { type:'cafe', place:'주변 카페', lat:null, lng:null, desc:'카페 정보를 불러오는 중...', needsSearch:true, parking:true }
             ],
             isDynamic: true, needsEnrichment: true
           });
@@ -2683,14 +2684,14 @@ async function enrichDynamicCourse(c) {
     const rLat = parseFloat(r.y), rLng = parseFloat(r.x);
     PLACE_COORDS[r.place_name] = { lat:rLat, lng:rLng };
     c.timeline[1] = { type:'food', place:r.place_name, lat:rLat, lng:rLng,
-      desc:`📍 ${r.address_name}${r.phone?' · ☎ '+r.phone:''}`, kakaoUrl:r.place_url };
+      desc:`📍 ${r.address_name}${r.phone?' · ☎ '+r.phone:''}`, kakaoUrl:r.place_url, parking:true };
     c.stops[1] = r.place_name;
   }
   if (cf && c.timeline[2] && c.timeline[2].needsSearch) {
     const cLat = parseFloat(cf.y), cLng = parseFloat(cf.x);
     PLACE_COORDS[cf.place_name] = { lat:cLat, lng:cLng };
     c.timeline[2] = { type:'cafe', place:cf.place_name, lat:cLat, lng:cLng,
-      desc:`📍 ${cf.address_name}${cf.phone?' · ☎ '+cf.phone:''}`, kakaoUrl:cf.place_url };
+      desc:`📍 ${cf.address_name}${cf.phone?' · ☎ '+cf.phone:''}`, kakaoUrl:cf.place_url, parking:true };
     c.stops[2] = cf.place_name;
   }
   if (r || cf) showToast(`${r?r.place_name:'맛집'} 등 근처 정보를 찾았어요! 🎉`);

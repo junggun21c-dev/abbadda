@@ -550,16 +550,17 @@ async function reverseGeocode(lat, lng) {
         const r = result.find(x => x.region_type === 'H') || result[0];
         const addr = [r.region_2depth_name, r.region_3depth_name].filter(Boolean).join(' ');
         if (addr) {
-          homeAddr = addr;
-          localStorage.setItem('homeAddr', addr);
-          document.getElementById('homeLabel').textContent = addr.length > 8 ? addr.slice(0,8)+'…' : addr;
+          // 사용자가 직접 설정한 출발지가 있으면 GPS로 덮어쓰지 않음
+          if (!homeAddrManual) {
+            homeAddr = addr;
+            localStorage.setItem('homeAddr', addr);
+            document.getElementById('homeLabel').textContent = addr.length > 8 ? addr.slice(0,8)+'…' : addr;
+            tourApiLoaded = false;
+            loadEventsFromTourAPI();
+          }
           const p=document.getElementById('locPill');
           if(p) p.classList.remove('detecting');
-          // 코스 상세 열려있으면 주소 갱신
           if (currentCourseIdx >= 0) renderCourseDetail();
-          // 주소 확정 → TourAPI 재조회
-          tourApiLoaded = false;
-          loadEventsFromTourAPI();
         }
       }
     });
@@ -597,7 +598,8 @@ function initLocation() {
       if(data.latitude && data.longitude) {
         // IP 위치로 주소 표시
         const addr = [data.city, data.region].filter(Boolean).join(' ');
-        if(addr) {
+        // 사용자가 직접 설정한 출발지가 있으면 IP 위치로 덮어쓰지 않음
+        if(addr && !homeAddrManual) {
           homeAddr = addr;
           localStorage.setItem('homeAddr', addr);
           document.getElementById('homeLabel').textContent = addr.length > 8 ? addr.slice(0,8)+'…' : addr;
@@ -998,6 +1000,19 @@ function getAreaCodesFromAddr(addr) {
   return [...codes];
 }
 
+/* 팝업 주소가 사용자 출발지 지역과 일치하는지 확인 */
+function popupMatchesHomeRegion(address) {
+  if (!address) return true;
+  if (!homeAddr || homeAddr === '출발지 미설정') return true;
+  const areaCodes = getAreaCodesFromAddr(homeAddr);
+  const codeToKw = {
+    '1':'서울','2':'인천','3':'대전','4':'대구','5':'광주','6':'부산',
+    '7':'울산','8':'세종','31':'경기','32':'강원','33':'충북','34':'충남',
+    '35':'경북','36':'경남','37':'전북','38':'전남','39':'제주'
+  };
+  return areaCodes.some(c => codeToKw[c] && address.includes(codeToKw[c]));
+}
+
 async function loadPopupsFromKakao() {
   if(popupLoaded) return;
   try {
@@ -1231,6 +1246,7 @@ let currentTemp=null;
 let favs=new Set();
 let currentCourseIdx=-1,pendingDeleteStepIdx=-1;
 let homeAddr = localStorage.getItem('homeAddr') || '출발지 미설정';
+let homeAddrManual = localStorage.getItem('homeAddrManual') === '1'; // 사용자 직접 설정 여부
 let shownCourseIds=new Set();
 let displayedCourses=[];
 
@@ -1557,9 +1573,13 @@ function getFilteredPool(){
   const wEff = wLabel==='눈' ? '비' : wLabel;
   const weatherOk = (c) => catVal === '실내' ? true : c.weather.includes(wEff);
   const ages=getChildAges();
+  // 수도권(서울·경기·인천·강원) 외 지역 사용자에게는 수도권 정적 코스 숨김
+  const homeCodes = getAreaCodesFromAddr(homeAddr !== '출발지 미설정' ? homeAddr : '');
+  const isMetroUser = homeAddr === '출발지 미설정' || homeCodes.some(c=>['1','2','31','32'].includes(c));
   let pool=COURSES_DB.filter(c=>{
     if(c.timeline && c.timeline.some(s=>s.noKids)) return false;
     if(c.parking===false) return false;
+    if(!isMetroUser && !c.isDynamic) return false; // 비수도권 사용자 → 수도권 정적 코스 제외
     return inDistRange(c.driveMin) && weatherOk(c) && isTempOk(c) && isSeasonOpen(c);
   });
   if(catVal==='실외') pool=pool.filter(c=>c.cat==='실외');
@@ -2104,6 +2124,7 @@ async function validateAndSaveAddr(v) {
 
 function commitAddr(v, lat, lng, resolvedName) {
   homeAddr=v; localStorage.setItem('homeAddr', v);
+  homeAddrManual=true; localStorage.setItem('homeAddrManual','1');
   // 히스토리 저장 (중복 제거 후 최신순, 최대 10개)
   let hist = getAddrHistory().filter(h => h.addr !== v);
   hist.unshift({ addr: v, lat: lat||null, lng: lng||null, name: resolvedName||null });
@@ -2117,7 +2138,9 @@ function commitAddr(v, lat, lng, resolvedName) {
   const label = resolvedName ? resolvedName.split(' ').slice(0,2).join(' ') : v.split(' ').slice(0,2).join(' ');
   showToast('📍 ' + label + ' 기준으로 저장됐어요');
   tourApiLoaded=false; loadEventsFromTourAPI();
-  popupLoaded=false; if(userLat&&userLng) loadPopupsFromKakao();
+  popupLoaded=false; loadPopupsFromKakao();
+  // 이전 위치 기반 동적 코스 제거 후 새 위치로 재로드
+  for(let i=COURSES_DB.length-1;i>=0;i--){ if(COURSES_DB[i].isDynamic) COURSES_DB.splice(i,1); }
   dynamicCoursesLoaded=false; loadDynamicCourses();
 }
 function closeModal(){document.getElementById('modal').classList.remove('open');}
@@ -2417,6 +2440,8 @@ function renderPopups(){
   const popupSortFn=(a,b)=>endUrgencyP(a)-endUrgencyP(b)||(a.distMin||120)-(b.distMin||120);
   let active=all.filter(p=>{
     if(p.distMin && !inDistRange(p.distMin)) return false;
+    // 좌표 유무 관계없이 항상 출발지 기반 지역 필터링
+    if(!popupMatchesHomeRegion(p.loc)) return false;
     if(catVal==='실내' && getPopupPlaceType(p)!=='실내') return false;
     if(catVal==='실외' && getPopupPlaceType(p)!=='실외') return false;
     if(curAges[0]!==0 && calcAgeContentScore(p.name, curAges) <= -2) return false;

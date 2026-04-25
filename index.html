@@ -579,8 +579,11 @@ function initLocation() {
 
   // ── GPS 성공 핸들러 ──
   const onSuccess = async (lat, lng, source) => {
-    userLat = lat; userLng = lng;
-    recalcDistances();
+    // 사용자가 직접 설정한 출발지 좌표가 있으면 GPS로 덮어쓰지 않음 (코스/거리 추천이 출발지 기준 유지)
+    if (!homeAddrManual || !userLat || !userLng) {
+      userLat = lat; userLng = lng;
+      recalcDistances();
+    }
     await fetchWeather(lat, lng);
     await reverseGeocode(lat, lng);
     renderCourses(true);
@@ -1258,6 +1261,14 @@ let favs=new Set();
 let currentCourseIdx=-1,pendingDeleteStepIdx=-1;
 let homeAddr = localStorage.getItem('homeAddr') || '출발지 미설정';
 let homeAddrManual = localStorage.getItem('homeAddrManual') === '1'; // 사용자 직접 설정 여부
+// 사용자 직접 설정 출발지가 있으면 히스토리에서 좌표 복원 (GPS 시작 전에)
+if (homeAddrManual && homeAddr !== '출발지 미설정') {
+  try {
+    const _h = JSON.parse(localStorage.getItem('homeAddrHistory') || '[]');
+    const _it = _h.find(h => h.addr === homeAddr);
+    if (_it && _it.lat && _it.lng) { userLat = _it.lat; userLng = _it.lng; }
+  } catch {}
+}
 let shownCourseIds=new Set();
 let displayedCourses=[];
 

@@ -89,12 +89,14 @@ export default async function handler(req, res) {
 
   // 병렬 호출
   try {
-    const tasks = [fetchSeoul()];
-    // 서울(1) 코드는 서울 API로 커버하므로 TourAPI에서는 서울 외 지역만
+    const tasks = [];
+    // 서울(1) 요청 시에만 서울 열린데이터 API 호출
+    if (codes.includes('1')) tasks.push(fetchSeoul());
     const tourCodes = codes.filter(c => c !== '1');
     for (const code of tourCodes) tasks.push(fetchTour(code));
-    // 서울 거주자도 경기 행사 보여주기 위해 31은 항상 포함
-    if (!tourCodes.includes('31')) tasks.push(fetchTour('31'));
+    // 서울 포함 요청 시, 경기(31)가 없으면 추가
+    if (codes.includes('1') && !tourCodes.includes('31')) tasks.push(fetchTour('31'));
+    if (tasks.length === 0) tasks.push(fetchTour('1')); // 빈 요청 방어
     await Promise.all(tasks);
   } catch(e) {
     return res.status(200).json({ items: [], total: 0, error: e.message });

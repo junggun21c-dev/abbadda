@@ -365,7 +365,7 @@ animation:snowFall 3s linear infinite;pointer-events:none;}
     <div class="section-title">진행중 / 예정 팝업 <span class="badge" id="popupBadge">NEW</span></div>
     <div class="event-scroll" id="popupList"></div>
     <button class="view-all-btn" onclick="openPopupAll()">전체보기 →</button>
-    <div class="section-title">당일치기 추천 코스 <span class="badge" id="courseCount">0</span></div>
+    <div class="section-title" id="courseSection">당일치기 추천 코스 <span class="badge" id="courseCount">0</span></div>
     <div id="courseList"></div>
     <button class="refresh-btn" id="refreshBtn" onclick="refreshCourses()"><span class="ref-icon">↻</span> 다른코스 추천받기</button>
   </div>
@@ -1681,6 +1681,7 @@ function refreshCourses(){
   const btn=document.getElementById('refreshBtn');
   btn.classList.add('spinning');
   document.getElementById('courseList').style.opacity='0.4';
+  document.getElementById('courseSection').scrollIntoView({behavior:'smooth',block:'start'});
   setTimeout(()=>{
     btn.classList.remove('spinning');
     document.getElementById('courseList').style.opacity='1';

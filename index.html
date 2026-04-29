@@ -367,7 +367,7 @@ animation:snowFall 3s linear infinite;pointer-events:none;}
     <button class="view-all-btn" onclick="openPopupAll()">전체보기 →</button>
     <div class="section-title" id="courseSection">당일치기 추천 코스 <span class="badge" id="courseCount">0</span></div>
     <div id="courseList"></div>
-    <button class="refresh-btn" id="refreshBtn" onclick="refreshCourses()"><span class="ref-icon">↻</span> 다른코스 추천받기</button>
+    <button class="refresh-btn" id="refreshBtn" onclick="loadMoreCourses()"><span class="ref-icon">+</span> 추천코스 더보기</button>
   </div>
   <div class="fav-page" id="favPage"></div>
 </div>
@@ -1677,17 +1677,26 @@ function courseCardHTML(c,i,animate){
   </div>`;
 }
 
-function refreshCourses(){
+function loadMoreCourses(){
+  const pool=getFilteredPool();
+  const unseen=pool.filter(c=>!shownCourseIds.has(c.id));
+  if(unseen.length===0){showToast('더 이상 추천할 코스가 없어요 😅'); return;}
   const btn=document.getElementById('refreshBtn');
   btn.classList.add('spinning');
-  document.getElementById('courseList').style.opacity='0.4';
-  document.getElementById('courseSection').scrollIntoView({behavior:'smooth',block:'start'});
+  const count = distMax===9999 ? 10 : 5;
+  const picked = shuffle(unseen).slice(0, count);
+  picked.forEach(c=>shownCourseIds.add(c.id));
+  const startIdx=displayedCourses.length;
+  displayedCourses=displayedCourses.concat(picked);
+  document.getElementById('courseCount').textContent=displayedCourses.length;
+  const el=document.getElementById('courseList');
+  const newHTML=picked.map((c,i)=>courseCardHTML(c,startIdx+i,true)).join('');
+  el.insertAdjacentHTML('beforeend',newHTML);
   setTimeout(()=>{
     btn.classList.remove('spinning');
-    document.getElementById('courseList').style.opacity='1';
-    shownCourseIds=new Set(); // 매 새로고침마다 전체 pool에서 랜덤 선택
-    renderCourses(true);
-  },600);
+    const cards=el.querySelectorAll('.course-card');
+    if(cards[startIdx]) cards[startIdx].scrollIntoView({behavior:'smooth',block:'start'});
+  },50);
 }
 
 function toggleFav(idx,el){favs.has(idx)?(favs.delete(idx),el.textContent='🤍'):(favs.add(idx),el.textContent='❤️');}

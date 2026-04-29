@@ -6,6 +6,9 @@
     },
     "api/events.js": {
       "maxDuration": 30
+    },
+    "api/places.js": {
+      "maxDuration": 20
     }
   }
 }

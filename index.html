@@ -1684,17 +1684,15 @@ async function loadMoreCourses(){
   // 풀 소진 시 카카오 페이지/반경 확장으로 추가 로드
   if(unseen.length===0){
     btn.classList.add('spinning');
-    // 다음 확장이 반경 확장인지 미리 판별
-    let nextRadiusKm=null;
-    if(_dynPage>=3){
-      if(_dynRadius<50000) nextRadiusKm=50;
-      else if(_dynRadius<100000) nextRadiusKm=100;
+    // 확장 단계에 따라 토스트 분기
+    let toastMsg='주변 새 코스를 더 찾는 중... 🔍';
+    if(!_tourExhausted && _tourPage<5){
+      toastMsg='한국관광공사 추천 장소를 더 가져오는 중... 🏞️';
+    } else if(_dynPage>=3){
+      if(_dynRadius<50000) toastMsg='반경 50km로 추천코스를 확장합니다 🌐';
+      else if(_dynRadius<100000) toastMsg='반경 100km로 추천코스를 확장합니다 🌐';
     }
-    if(nextRadiusKm){
-      showToast(`반경 ${nextRadiusKm}km로 추천코스를 확장합니다 🌐`);
-    } else {
-      showToast('주변 새 코스를 더 찾는 중... 🔍');
-    }
+    showToast(toastMsg);
     const added=await expandDynamicCourses();
     btn.classList.remove('spinning');
     if(added>0){
@@ -2678,6 +2676,58 @@ let _dynId = 2000;
 let _dynPage = 1;
 let _dynRadius = 20000;
 let _dynExpanding = false;
+let _tourPage = 1;
+let _tourExhausted = false;
+
+function _buildTourCourse(item, bgColors) {
+  // 중복 체크: TourAPI contentid 기반
+  if (COURSES_DB.some(c => c.tourContentId === item.contentid)) return false;
+  const km = haversineKm(userLat, userLng, item.lat, item.lng);
+  const driveMin = kmToDriveMin(km);
+  const region = (item.addr || '').split(' ').slice(0, 2).join(' ');
+  PLACE_COORDS[item.title] = { lat: item.lat, lng: item.lng };
+  COURSES_DB.push({
+    id: _dynId++,
+    emoji: item.emoji,
+    bg: bgColors[(_dynId - 2000) % bgColors.length],
+    title: item.title,
+    region, driveMin,
+    drive: driveMin >= 60 ? `${Math.floor(driveMin/60)}시간${driveMin%60?' '+driveMin%60+'분':''}` : `${driveMin}분`,
+    total: '5~6시간', rating: null, cat: item.cat,
+    weather: item.cat === '실내' ? ['흐림','비','실내'] : ['맑음','흐림'],
+    season: ['봄','여름','가을','겨울'], tags: item.tags, cost: '별도 확인',
+    destLat: item.lat, destLng: item.lng,
+    stops: [item.title, '주변 맛집', '주변 카페'],
+    transit: [{km:0.3,min:5},{km:0.5,min:7}],
+    timeline: [
+      { type:'place', place:item.title, lat:item.lat, lng:item.lng,
+        desc:`📍 ${item.addr}${item.tel?' · ☎ '+item.tel:''}`,
+        hours:'운영시간 확인 필요', tip:'방문 전 운영시간을 꼭 확인하세요', parking:true,
+        firstimage: item.firstimage || null },
+      { type:'food', place:'주변 맛집', lat:null, lng:null, desc:'맛집 정보를 불러오는 중...', needsSearch:true, parking:true },
+      { type:'cafe', place:'주변 카페', lat:null, lng:null, desc:'카페 정보를 불러오는 중...', needsSearch:true, parking:true }
+    ],
+    isDynamic: true, needsEnrichment: true,
+    tourContentId: item.contentid, tourSource: true
+  });
+  return true;
+}
+
+async function loadTourPlaces(page = 1) {
+  if (!userLat || !userLng) return 0;
+  const before = COURSES_DB.filter(c => c.isDynamic).length;
+  try {
+    const url = `/api/places?lat=${userLat}&lng=${userLng}&radius=20000&page=${page}`;
+    const resp = await fetch(url);
+    if (!resp.ok) return 0;
+    const data = await resp.json();
+    const items = data?.items || [];
+    if (items.length === 0) { _tourExhausted = true; return 0; }
+    const bgColors = typeof EVENT_BGS !== 'undefined' ? EVENT_BGS : ['#FFF0E8','#E8F4FF','#E8FFE8','#FFF8E8'];
+    for (const item of items) _buildTourCourse(item, bgColors);
+  } catch { return 0; }
+  return COURSES_DB.filter(c => c.isDynamic).length - before;
+}
 
 function _buildDynamicCourse(cat, place, bgColors) {
   const isDup = COURSES_DB.some(c => c.isDynamic && c.timeline && c.timeline[0] && c.timeline[0].kakaoUrl === place.place_url);
@@ -2714,7 +2764,18 @@ function _buildDynamicCourse(cat, place, bgColors) {
 
 async function expandDynamicCourses() {
   if (_dynExpanding || !userLat || !userLng) return 0;
-  // 다음 페이지 → 반경 확장 순서로 풀 늘리기
+  _dynExpanding = true;
+  const beforeAll = COURSES_DB.filter(c => c.isDynamic).length;
+
+  // 1단계: TourAPI 다음 페이지 시도 (큐레이션 우선)
+  if (!_tourExhausted && _tourPage < 5) {
+    _tourPage++;
+    await loadTourPlaces(_tourPage);
+    const tourAdded = COURSES_DB.filter(c => c.isDynamic).length - beforeAll;
+    if (tourAdded >= 5) { _dynExpanding = false; return tourAdded; }
+  }
+
+  // 2단계: 카카오 페이지/반경 확장
   if (_dynPage < 3) {
     _dynPage++;
   } else if (_dynRadius < 50000) {
@@ -2722,12 +2783,11 @@ async function expandDynamicCourses() {
   } else if (_dynRadius < 100000) {
     _dynRadius = 100000; _dynPage = 1;
   } else {
-    return 0; // 모든 확장 옵션 소진
+    _dynExpanding = false;
+    return COURSES_DB.filter(c => c.isDynamic).length - beforeAll;
   }
   const loaded = await loadKakaoSDK();
-  if (!loaded) return 0;
-  _dynExpanding = true;
-  const before = COURSES_DB.filter(c => c.isDynamic).length;
+  if (!loaded) { _dynExpanding = false; return 0; }
   const ps = new kakao.maps.services.Places();
   const opts = {
     location: new kakao.maps.LatLng(userLat, userLng),
@@ -2759,7 +2819,7 @@ async function expandDynamicCourses() {
     }, opts);
   })));
   _dynExpanding = false;
-  return COURSES_DB.filter(c => c.isDynamic).length - before;
+  return COURSES_DB.filter(c => c.isDynamic).length - beforeAll;
 }
 
 async function loadDynamicCourses() {
@@ -2767,6 +2827,11 @@ async function loadDynamicCourses() {
   const loaded = await loadKakaoSDK();
   if (!loaded) return;
   dynamicCoursesLoaded = true;
+
+  // TourAPI 병렬 로드 (한국관광공사 큐레이션 데이터 보강)
+  loadTourPlaces(1).then(added => {
+    if (added > 0) renderCourses(false);
+  });
 
   const ps = new kakao.maps.services.Places();
   const opts = {

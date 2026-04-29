@@ -1793,7 +1793,7 @@ function renderCourseDetail(){
       </div>
       <div class="tl-right">
         <div class="tl-header">
-          <div><div style="display:flex;align-items:center;gap:5px;"><div class="tl-place">${s.place}</div><span class="tl-chip ${s.type}">${s.type==='food'?'식사':s.type==='cafe'?'카페':'장소'}</span><a class="tl-search" href="https://search.naver.com/search.naver?query=${nq}" target="_blank" rel="noopener" onclick="event.stopPropagation()" aria-label="네이버 검색">↗</a></div><div class="tl-time">${t}</div></div>
+          <div><div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;"><div class="tl-place">${s.place}</div><a class="tl-search" href="https://search.naver.com/search.naver?query=${nq}" target="_blank" rel="noopener" onclick="event.stopPropagation()" aria-label="네이버 검색">↗</a><span class="tl-chip ${s.type}">${s.type==='food'?'식사':s.type==='cafe'?'카페':'장소'}</span></div><div class="tl-time">${t}</div></div>
           ${s.type!=='place'?`<button class="chg-btn" id="chgBtn${i}" onclick="changeStep(${i})">🔄 변경</button>`:''}
         </div>
         <div class="tl-desc">${s.desc}</div>

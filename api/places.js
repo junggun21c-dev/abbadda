@@ -14,11 +14,15 @@ export default async function handler(req, res) {
   const safeRadius = Math.min(Math.max(parseInt(radius, 10) || 20000, 1000), 20000);
   const safePage = Math.min(Math.max(parseInt(page, 10) || 1, 1), 20);
 
+  // contentTypeId=28(레포츠)는 골프장·경마장 등 성인 시설 비중이 커서 제외
+  // 12(관광지)·14(문화시설)만 사용해 가족 친화 데이터로 한정
   const CONTENT_TYPES = [
     { id: 12, cat: '실외', tags: ['관광지', '자연', '아이추천'], emoji: '🏞️' },
     { id: 14, cat: '실내', tags: ['문화시설', '박물관', '교육'], emoji: '🏛️' },
-    { id: 28, cat: '실외', tags: ['레포츠', '액티비티', '아이추천'], emoji: '🎯' },
   ];
+
+  // 가족·아이 부적합 장소 차단 (골프·성인·도박·유흥 등)
+  const NOT_FAMILY_FRIENDLY = /골프|GOLF|컨트리클럽|CC| GC$|경마|경륜|경정|카지노|사격|성인|에로|어른전용|룸살롱|나이트클럽|유흥|단란|안마|찜질방|모텔|호텔/i;
 
   const fetchType = async (ct) => {
     try {
@@ -41,7 +45,7 @@ export default async function handler(req, res) {
         cat: ct.cat,
         tags: ct.tags,
         emoji: ct.emoji,
-      })).filter((p) => p.lat && p.lng && p.title);
+      })).filter((p) => p.lat && p.lng && p.title && !NOT_FAMILY_FRIENDLY.test(p.title));
     } catch {
       return [];
     }

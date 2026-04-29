@@ -2804,7 +2804,7 @@ async function expandDynamicCourses() {
     return true;
   });
   const bgColors = typeof EVENT_BGS !== 'undefined' ? EVENT_BGS : ['#FFF0E8','#E8F4FF','#E8FFE8','#FFF8E8'];
-  const PLACE_BLOCK = /팬텀|성인|에로|어른전용|룸살롱|나이트클럽|유흥|단란|안마/;
+  const PLACE_BLOCK = /팬텀|성인|에로|어른전용|룸살롱|나이트클럽|유흥|단란|안마|골프|GOLF|컨트리클럽| CC$| GC$|경마|경륜|경정|카지노|사격장|찜질방|모텔/i;
   await Promise.all(activeCats.map(cat => new Promise(resolve => {
     ps.keywordSearch(cat.kw, (data, status) => {
       if (status === kakao.maps.services.Status.OK) {
@@ -2855,7 +2855,7 @@ async function loadDynamicCourses() {
     ps.keywordSearch(cat.kw, (data, status) => {
       if (status === kakao.maps.services.Status.OK) {
         // 부적합 장소 필터: 전화번호·도로명주소 없음, 카테고리 코드 불일치, 이름 블랙리스트
-        const PLACE_BLOCK = /팬텀|성인|에로|어른전용|룸살롱|나이트클럽|유흥|단란|안마/;
+        const PLACE_BLOCK = /팬텀|성인|에로|어른전용|룸살롱|나이트클럽|유흥|단란|안마|골프|GOLF|컨트리클럽| CC$| GC$|경마|경륜|경정|카지노|사격장|찜질방|모텔/i;
         const places = data.filter(p => {
           if (!p.phone || !p.phone.trim()) return false;
           if (!p.road_address_name || !p.road_address_name.trim()) return false;

@@ -1108,7 +1108,7 @@ async function loadPopupsFromKakaoFallback() {
     results = results.filter(p => { const k = p.id||p.place_url; if(seen.has(k)) return false; seen.add(k); return true; });
     POPUPS_DB = results.map((place, i) => {
       const pLat = parseFloat(place.y), pLng = parseFloat(place.x);
-      const dist = (userLat&&userLng) ? kmToDriveMin(haversineKm(userLat,userLng,pLat,pLng)) : 60;
+      const dist = (userLat&&userLng&&pLat&&pLng) ? kmToDriveMin(haversineKm(userLat,userLng,pLat,pLng)) : null;
       return { id:200+i, emoji:['🎪','🛍️','✨','🎨','🎭','🎠','🎡'][i%7], bg:EVENT_BGS[i%EVENT_BGS.length],
         name:place.place_name, date:'🔖 상시운영', loc:place.road_address_name||place.address_name,
         region:(place.address_name||'').split(' ').slice(0,2).join(' '), distMin:dist,
@@ -1164,7 +1164,8 @@ async function loadEventsFromTourAPI() {
         const addr = String(item.addr1 || item.addr2 || '');
         const evtLat = item.mapy ? parseFloat(item.mapy) : null;
         const evtLng = item.mapx ? parseFloat(item.mapx) : null;
-        let finalDistMin = 120;
+        // 좌표 없으면 null → 거리 탭 필터에서 제외(전체 탭에만 노출). 임의 기본값(120) 사용 시 1.5~2.5시간 탭에 잘못 매핑되는 버그 방지
+        let finalDistMin = null;
         if(userLat && userLng && evtLat && evtLng) {
           finalDistMin = kmToDriveMin(haversineKm(userLat, userLng, evtLat, evtLng));
         }
@@ -1294,7 +1295,8 @@ function setDist(el,min,max){
 
 /* 현재 선택된 거리 탭 범위에 해당하는지 확인 */
 function inDistRange(d){
-  if(distMax===9999) return true;          // 전체
+  if(distMax===9999) return true;          // 전체 → 거리 미상도 노출
+  if(d==null || isNaN(d)) return false;    // 좌표 없는 항목은 특정 탭에서 제외
   if(distMin===0) return d<=distMax;       // 30분 이내
   return d>=distMin && d<=distMax;         // 나머지 범위 (경계값 포함)
 }
@@ -1541,7 +1543,7 @@ async function buildCourseWithEvent(eventId) {
   const tempCourse = {
     id: 9000+eventId, emoji:e.emoji, bg:e.bg,
     title:`${e.name} 당일 코스`, region:e.loc,
-    driveMin:e.distMin, drive:`${e.distMin}분`, total:'6시간', rating:null,
+    driveMin:e.distMin??60, drive:e.distMin!=null?`${e.distMin}분`:'거리 미상', total:'6시간', rating:null,
     cat:'실외', weather:['맑음','흐림','비'], tags:['행사','축제'], cost:'별도확인',
     destLat:evtLat, destLng:evtLng,
     stops:[e.name, restaurant?restaurant.place_name:'주변 식당', cafe?cafe.place_name:'주변 카페'],
@@ -2630,7 +2632,7 @@ async function buildCourseWithPopup(popupId){
   const tempCourse={
     id:9500+popupId, emoji:p.emoji, bg:p.bg,
     title:`${p.name} 팝업 코스`, region:p.region,
-    driveMin:p.distMin, drive:`${p.distMin}분`, total:'5시간', rating:null,
+    driveMin:p.distMin??60, drive:p.distMin!=null?`${p.distMin}분`:'거리 미상', total:'5시간', rating:null,
     cat:'실내', weather:['맑음','흐림','비'], tags:['팝업','체험'], cost:'별도확인',
     destLat:pCoords.lat, destLng:pCoords.lng,
     stops:[p.name, restaurantName, cafeName],

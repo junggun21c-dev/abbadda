@@ -1684,7 +1684,17 @@ async function loadMoreCourses(){
   // 풀 소진 시 카카오 페이지/반경 확장으로 추가 로드
   if(unseen.length===0){
     btn.classList.add('spinning');
-    showToast('주변 새 코스를 더 찾는 중... 🔍');
+    // 다음 확장이 반경 확장인지 미리 판별
+    let nextRadiusKm=null;
+    if(_dynPage>=3){
+      if(_dynRadius<50000) nextRadiusKm=50;
+      else if(_dynRadius<100000) nextRadiusKm=100;
+    }
+    if(nextRadiusKm){
+      showToast(`반경 ${nextRadiusKm}km로 추천코스를 확장합니다 🌐`);
+    } else {
+      showToast('주변 새 코스를 더 찾는 중... 🔍');
+    }
     const added=await expandDynamicCourses();
     btn.classList.remove('spinning');
     if(added>0){

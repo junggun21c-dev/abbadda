@@ -1677,11 +1677,31 @@ function courseCardHTML(c,i,animate){
   </div>`;
 }
 
-function loadMoreCourses(){
-  const pool=getFilteredPool();
-  const unseen=pool.filter(c=>!shownCourseIds.has(c.id));
-  if(unseen.length===0){showToast('더 이상 추천할 코스가 없어요 😅'); return;}
+async function loadMoreCourses(){
   const btn=document.getElementById('refreshBtn');
+  let pool=getFilteredPool();
+  let unseen=pool.filter(c=>!shownCourseIds.has(c.id));
+  // 풀 소진 시 카카오 페이지/반경 확장으로 추가 로드
+  if(unseen.length===0){
+    btn.classList.add('spinning');
+    showToast('주변 새 코스를 더 찾는 중... 🔍');
+    const added=await expandDynamicCourses();
+    btn.classList.remove('spinning');
+    if(added>0){
+      pool=getFilteredPool();
+      unseen=pool.filter(c=>!shownCourseIds.has(c.id));
+    }
+  }
+  // 모든 확장 옵션도 소진 → 풀 리셋(같은 코스 랜덤 재섞기)
+  if(unseen.length===0){
+    shownCourseIds=new Set(displayedCourses.map(c=>c.id));
+    unseen=pool.filter(c=>!shownCourseIds.has(c.id));
+    if(unseen.length===0){
+      shownCourseIds=new Set();
+      unseen=pool;
+      showToast('전체 코스를 다시 보여드려요 🔁');
+    }
+  }
   btn.classList.add('spinning');
   const count = distMax===9999 ? 10 : 5;
   const picked = shuffle(unseen).slice(0, count);
@@ -2645,6 +2665,92 @@ const DYNAMIC_CATEGORIES = [
 ];
 
 let _dynId = 2000;
+let _dynPage = 1;
+let _dynRadius = 20000;
+let _dynExpanding = false;
+
+function _buildDynamicCourse(cat, place, bgColors) {
+  const isDup = COURSES_DB.some(c => c.isDynamic && c.timeline && c.timeline[0] && c.timeline[0].kakaoUrl === place.place_url);
+  if (isDup) return false;
+  const pLat = parseFloat(place.y), pLng = parseFloat(place.x);
+  const km = haversineKm(userLat, userLng, pLat, pLng);
+  const driveMin = kmToDriveMin(km);
+  const addr = place.road_address_name || place.address_name || '';
+  const region = addr.split(' ').slice(0, 2).join(' ');
+  PLACE_COORDS[place.place_name] = { lat: pLat, lng: pLng };
+  COURSES_DB.push({
+    id: _dynId++,
+    emoji: cat.emoji,
+    bg: bgColors[(_dynId - 2000) % bgColors.length],
+    title: place.place_name,
+    region, driveMin,
+    drive: driveMin >= 60 ? `${Math.floor(driveMin/60)}시간${driveMin%60?' '+driveMin%60+'분':''}` : `${driveMin}분`,
+    total: '5~6시간', rating: null, cat: cat.cat, weather: cat.weather,
+    season: ['봄','여름','가을','겨울'], tags: cat.tags, cost: '별도 확인',
+    destLat: pLat, destLng: pLng,
+    stops: [place.place_name, '주변 맛집', '주변 카페'],
+    transit: [{km:0.3,min:5},{km:0.5,min:7}],
+    timeline: [
+      { type:'place', place:place.place_name, lat:pLat, lng:pLng,
+        desc:`📍 ${addr}${place.phone?' · ☎ '+place.phone:''}`,
+        hours:'운영시간 카카오맵 확인', tip:'방문 전 운영시간을 꼭 확인하세요', kakaoUrl:place.place_url, parking:true },
+      { type:'food', place:'주변 맛집', lat:null, lng:null, desc:'맛집 정보를 불러오는 중...', needsSearch:true, parking:true },
+      { type:'cafe', place:'주변 카페', lat:null, lng:null, desc:'카페 정보를 불러오는 중...', needsSearch:true, parking:true }
+    ],
+    isDynamic: true, needsEnrichment: true
+  });
+  return true;
+}
+
+async function expandDynamicCourses() {
+  if (_dynExpanding || !userLat || !userLng) return 0;
+  // 다음 페이지 → 반경 확장 순서로 풀 늘리기
+  if (_dynPage < 3) {
+    _dynPage++;
+  } else if (_dynRadius < 50000) {
+    _dynRadius = 50000; _dynPage = 1;
+  } else if (_dynRadius < 100000) {
+    _dynRadius = 100000; _dynPage = 1;
+  } else {
+    return 0; // 모든 확장 옵션 소진
+  }
+  const loaded = await loadKakaoSDK();
+  if (!loaded) return 0;
+  _dynExpanding = true;
+  const before = COURSES_DB.filter(c => c.isDynamic).length;
+  const ps = new kakao.maps.services.Places();
+  const opts = {
+    location: new kakao.maps.LatLng(userLat, userLng),
+    radius: _dynRadius,
+    sort: kakao.maps.services.SortBy.DISTANCE
+  };
+  if (_dynPage > 1) opts.page = _dynPage;
+  const curMonth = new Date().getMonth() + 1;
+  const activeCats = DYNAMIC_CATEGORIES.filter(cat => {
+    if(cat.operationMonths && !cat.operationMonths.includes(curMonth)) return false;
+    if(cat.minTemp && currentTemp !== null && currentTemp < cat.minTemp) return false;
+    return true;
+  });
+  const bgColors = typeof EVENT_BGS !== 'undefined' ? EVENT_BGS : ['#FFF0E8','#E8F4FF','#E8FFE8','#FFF8E8'];
+  const PLACE_BLOCK = /팬텀|성인|에로|어른전용|룸살롱|나이트클럽|유흥|단란|안마/;
+  await Promise.all(activeCats.map(cat => new Promise(resolve => {
+    ps.keywordSearch(cat.kw, (data, status) => {
+      if (status === kakao.maps.services.Status.OK) {
+        const places = data.filter(p => {
+          if (!p.phone || !p.phone.trim()) return false;
+          if (!p.road_address_name || !p.road_address_name.trim()) return false;
+          if (PLACE_BLOCK.test(p.place_name)) return false;
+          if (cat.validCodes && !cat.validCodes.includes(p.category_group_code)) return false;
+          return true;
+        }).slice(0, 5);
+        for (const place of places) _buildDynamicCourse(cat, place, bgColors);
+      }
+      resolve();
+    }, opts);
+  })));
+  _dynExpanding = false;
+  return COURSES_DB.filter(c => c.isDynamic).length - before;
+}
 
 async function loadDynamicCourses() {
   if (dynamicCoursesLoaded || !userLat || !userLng) return;

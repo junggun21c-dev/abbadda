@@ -150,6 +150,8 @@ animation:snowFall 3s linear infinite;pointer-events:none;}
 .tl-item{display:flex;gap:10px;padding:0;}
 .tl-left{display:flex;flex-direction:column;align-items:center;width:26px;flex-shrink:0;}
 .tl-num{width:26px;height:26px;border-radius:50%;background:#6C63FF;color:white;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;}
+.tl-search{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:#03C75A;color:white;font-size:14px;font-weight:700;text-decoration:none;line-height:1;flex-shrink:0;}
+.tl-search:active{background:#02b552;}
 .tl-vseg{width:2px;background:#E8E4DC;flex:1;min-height:20px;position:relative;}.tl-conn-row{display:flex;gap:10px;align-items:stretch;}.tl-conn-left{width:26px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;position:relative;min-height:48px;}.tl-transit-lbl{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:10px;color:#888;background:white;border:1px solid #DDD;border-radius:20px;padding:2px 9px;white-space:nowrap;text-align:center;line-height:1.4;z-index:2;}
 .tl-right{flex:1;padding:2px 0 12px;}
 .tl-header{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:2px;}
@@ -1791,7 +1793,7 @@ function renderCourseDetail(){
       </div>
       <div class="tl-right">
         <div class="tl-header">
-          <div><div style="display:flex;align-items:center;gap:5px;"><div class="tl-place">${s.place}</div><span class="tl-chip ${s.type}">${s.type==='food'?'식사':s.type==='cafe'?'카페':'장소'}</span></div><div class="tl-time">${t}</div></div>
+          <div><div style="display:flex;align-items:center;gap:5px;"><div class="tl-place">${s.place}</div><span class="tl-chip ${s.type}">${s.type==='food'?'식사':s.type==='cafe'?'카페':'장소'}</span><a class="tl-search" href="https://search.naver.com/search.naver?query=${nq}" target="_blank" rel="noopener" onclick="event.stopPropagation()" aria-label="네이버 검색">→</a></div><div class="tl-time">${t}</div></div>
           ${s.type!=='place'?`<button class="chg-btn" id="chgBtn${i}" onclick="changeStep(${i})">🔄 변경</button>`:''}
         </div>
         <div class="tl-desc">${s.desc}</div>

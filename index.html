@@ -55,7 +55,10 @@ animation:snowFall 3s linear infinite;pointer-events:none;}
 .filter-row::-webkit-scrollbar{display:none;}
 .chip{background:rgba(255,255,255,0.18);border:1px solid rgba(255,255,255,0.3);border-radius:20px;padding:6px 13px;font-size:13px;color:white;white-space:nowrap;cursor:pointer;transition:all 0.15s;}
 .chip.active{background:white;color:#6C63FF;font-weight:700;}
-.settings-bar{display:flex;gap:8px;padding:0.9rem 1rem 0;flex-wrap:wrap;}
+.settings-bar{display:flex;gap:8px;padding:0.9rem 1rem 0;flex-wrap:wrap;align-items:center;}
+.naver-login-btn{margin-left:auto;display:flex;align-items:center;gap:4px;background:#fff;border:1px solid #ddd;border-radius:8px;padding:5px 10px;font-size:12px;font-weight:600;color:#333;cursor:pointer;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,0.08);}
+.naver-login-btn .n-logo{color:#03C75A;font-size:13px;font-weight:900;font-family:'Arial Black',sans-serif;line-height:1;}
+.naver-login-btn:hover{border-color:#03C75A;}
 .setting-pill{display:flex;align-items:center;gap:5px;background:white;border:1px solid #E8E4DC;border-radius:20px;padding:7px 13px;font-size:13px;color:#555;cursor:pointer;transition:all 0.15s;}
 .setting-pill:active{transform:scale(0.96);}
 .weather-sunny{background:#FFF8E6;border-color:#F5C842;color:#9A6E00;}
@@ -329,6 +332,7 @@ animation:snowFall 3s linear infinite;pointer-events:none;}
         <option value="13">13살 이상</option>
       </select>
     </div>
+    <button class="naver-login-btn" id="naverLoginBtn" onclick="naverLogin()"><span class="n-logo">N</span>로그인</button>
     <div class="setting-pill-wrap" id="age2Wrap" style="display:none">
       <span>👦</span>
       <select id="age2Select" onchange="onAge2Change(this.value)">
@@ -1259,7 +1263,8 @@ const ages=['5살','7살','9살','11살','13살'];
 const members=['2인(부부)','3인 가족','4인 가족','5인 이상'];
 let wIdx=0,aIdx=3,mIdx=1,catVal='전체',distMin=0,distMax=9999;
 let currentTemp=null;
-let favs=new Set();
+let favs=new Set(JSON.parse(localStorage.getItem('favs')||'[]'));
+function saveFavs(){localStorage.setItem('favs',JSON.stringify([...favs]));}
 let currentCourseIdx=-1,pendingDeleteStepIdx=-1;
 let homeAddr = localStorage.getItem('homeAddr') || '출발지 미설정';
 let homeAddrManual = localStorage.getItem('homeAddrManual') === '1'; // 사용자 직접 설정 여부
@@ -1731,7 +1736,7 @@ async function loadMoreCourses(){
   },50);
 }
 
-function toggleFav(idx,el){favs.has(idx)?(favs.delete(idx),el.textContent='🤍'):(favs.add(idx),el.textContent='❤️');}
+function toggleFav(idx,el){favs.has(idx)?(favs.delete(idx),el.textContent='🤍'):(favs.add(idx),el.textContent='❤️');saveFavs();}
 
 async function openCourse(idx){
   currentCourseIdx=idx;
@@ -2475,6 +2480,7 @@ function renderFavPage(){
 
 function removeFav(idx,el){
   favs.delete(idx);
+  saveFavs();
   renderFavPage();
   renderCourses(false);
   showToast('저장이 취소됐어요');
@@ -2482,6 +2488,7 @@ function removeFav(idx,el){
 
 function clearAllFavs(){
   favs.clear();
+  saveFavs();
   renderFavPage();
   renderCourses(false);
   showToast('전체 삭제됐어요');
@@ -2936,6 +2943,62 @@ async function enrichDynamicCourse(c) {
   if (r || cf) showToast(`${r?r.place_name:'맛집'} 등 근처 정보를 찾았어요! 🎉`);
 }
 
+/* ─── 네이버 로그인 ─── */
+let naverUser = null;
+
+function initNaverAuth() {
+  // 콜백으로 돌아왔을 때 ?nu= 파라미터 처리
+  const params = new URLSearchParams(location.search);
+  const nu = params.get('nu');
+  const err = params.get('login_error');
+  if (nu) {
+    try {
+      naverUser = JSON.parse(atob(nu));
+      localStorage.setItem('naverUser', JSON.stringify(naverUser));
+    } catch(e) {}
+    history.replaceState({}, '', '/');
+  } else if (err) {
+    showToast('로그인에 실패했어요. 다시 시도해주세요.');
+    history.replaceState({}, '', '/');
+  } else {
+    const saved = localStorage.getItem('naverUser');
+    if (saved) try { naverUser = JSON.parse(saved); } catch(e) {}
+  }
+  renderNaverBtn();
+}
+
+function renderNaverBtn() {
+  const btn = document.getElementById('naverLoginBtn');
+  if (!btn) return;
+  if (naverUser) {
+    btn.innerHTML = `<span class="n-logo">N</span>${naverUser.name}`;
+    btn.onclick = naverLogout;
+    btn.title = '탭하면 로그아웃';
+  } else {
+    btn.innerHTML = `<span class="n-logo">N</span>로그인`;
+    btn.onclick = naverLogin;
+  }
+}
+
+function naverLogin() {
+  const state = Math.random().toString(36).slice(2);
+  sessionStorage.setItem('naver_state', state);
+  const p = new URLSearchParams({
+    response_type: 'code',
+    client_id: 'A4sjS1J8XUMBm5y0ysWi',
+    redirect_uri: 'https://abbadda.vercel.app/api/auth/callback',
+    state
+  });
+  location.href = `https://nid.naver.com/oauth2.0/authorize?${p}`;
+}
+
+function naverLogout() {
+  naverUser = null;
+  localStorage.removeItem('naverUser');
+  renderNaverBtn();
+  showToast('로그아웃 됐어요');
+}
+
 /* ─── 경로 저장 ─── */
 function toggleSaveRoute(idx){
   const btn=document.getElementById('saveRouteBtn');
@@ -2948,6 +3011,7 @@ function toggleSaveRoute(idx){
     if(btn){btn.textContent='❤️ 찜됨';btn.classList.add('saved');}
     showToast('코스가 저장됐어요! ❤️');
   }
+  saveFavs();
   renderCourses(false);
 }
 
@@ -3086,6 +3150,7 @@ renderEvents();
 renderPopups();
 renderCourses(false);
 initHomeLabel();
+initNaverAuth();
 loadEventsFromTourAPI();
 initLocation();
 setTimeout(() => { loadKakaoSDK(); checkUrlCourse(); checkUrlEvent(); checkUrlDyn(); }, 1500);

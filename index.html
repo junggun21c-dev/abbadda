@@ -59,6 +59,11 @@ animation:snowFall 3s linear infinite;pointer-events:none;}
 .naver-login-btn{margin-left:auto;display:flex;align-items:center;gap:4px;background:#fff;border:1px solid #ddd;border-radius:8px;padding:5px 10px;font-size:12px;font-weight:600;color:#333;cursor:pointer;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,0.08);}
 .naver-login-btn .n-logo{color:#03C75A;font-size:13px;font-weight:900;font-family:'Arial Black',sans-serif;line-height:1;}
 .naver-login-btn:hover{border-color:#03C75A;}
+.naver-user-info{margin-left:auto;display:flex;align-items:center;gap:6px;white-space:nowrap;font-size:13px;color:#333;}
+.naver-user-info .naver-name{font-weight:600;}
+.naver-user-info .naver-divider{color:#ddd;}
+.naver-user-info .naver-logout{color:#999;cursor:pointer;font-size:12px;}
+.naver-user-info .naver-logout:hover{color:#6C63FF;}
 .setting-pill{display:flex;align-items:center;gap:5px;background:white;border:1px solid #E8E4DC;border-radius:20px;padding:7px 13px;font-size:13px;color:#555;cursor:pointer;transition:all 0.15s;}
 .setting-pill:active{transform:scale(0.96);}
 .weather-sunny{background:#FFF8E6;border-color:#F5C842;color:#9A6E00;}
@@ -2970,15 +2975,16 @@ function initNaverAuth() {
 }
 
 function renderNaverBtn() {
-  const btn = document.getElementById('naverLoginBtn');
-  if (!btn) return;
+  const wrap = document.getElementById('naverLoginBtn');
+  if (!wrap) return;
   if (naverUser) {
-    btn.innerHTML = `<span class="n-logo">N</span>${naverUser.name}`;
-    btn.onclick = naverLogout;
-    btn.title = '탭하면 로그아웃';
+    wrap.outerHTML = `<div class="naver-user-info" id="naverLoginBtn">
+      <span class="naver-name">${naverUser.name} 님</span>
+      <span class="naver-divider">|</span>
+      <span class="naver-logout" onclick="naverLogout()">로그아웃</span>
+    </div>`;
   } else {
-    btn.innerHTML = `<span class="n-logo">N</span>로그인`;
-    btn.onclick = naverLogin;
+    wrap.outerHTML = `<button class="naver-login-btn" id="naverLoginBtn" onclick="naverLogin()"><span class="n-logo">N</span>로그인</button>`;
   }
 }
 

@@ -291,6 +291,10 @@ animation:snowFall 3s linear infinite;pointer-events:none;}
 .fav-header{font-size:16px;font-weight:700;color:#222;margin-bottom:1rem;display:flex;align-items:center;justify-content:space-between;}
 .fav-count{font-size:12px;font-weight:400;color:#999;margin-left:6px;}
 .fav-clear-btn{font-size:12px;color:#6C63FF;background:none;border:none;cursor:pointer;font-family:'Noto Sans KR',sans-serif;padding:0;}
+.fav-card-actions{display:flex;gap:8px;margin-top:8px;}
+.fav-card-actions .go-btn{flex:1;}
+.fav-del-btn{padding:8px 12px;border:1px solid #ffcdd2;border-radius:12px;background:#fff5f5;color:#e53935;font-size:12px;font-weight:600;cursor:pointer;font-family:'Noto Sans KR',sans-serif;white-space:nowrap;}
+.fav-del-btn:hover{background:#ffebee;}
 
 /* ── 설정 드롭다운 ── */
 .setting-select{appearance:none;-webkit-appearance:none;background:white;border:1px solid #E8E4DC;border-radius:20px;padding:6px 28px 6px 10px;font-size:12px;color:#666;cursor:pointer;font-family:'Noto Sans KR',sans-serif;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23aaa'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;outline:none;transition:border-color 0.15s;}
@@ -2472,7 +2476,10 @@ function renderFavPage(){
         <div class="course-meta"><span class="star">★</span>${c.rating||'NEW'} · ${c.total}${c.season&&c.season.length?` · 🍃 ${c.season.join('/')}`:''}</div>
         <div class="tag-row">${c.tags.slice(0,3).map((t,j)=>`<span class="tag ${['orange','blue','green','purple'][j%4]}">${t}</span>`).join('')}</div>
         <div class="stops-flow">${flowHtml}</div>
-        <button class="go-btn" onclick="event.stopPropagation();openCourse(${idx})">코스 자세히 보기 →</button>
+        <div class="fav-card-actions">
+          <button class="go-btn" onclick="event.stopPropagation();openCourse(${idx})">코스 자세히 보기 →</button>
+          <button class="fav-del-btn" onclick="event.stopPropagation();removeFav(${idx},this)">🗑️ 삭제</button>
+        </div>
       </div>
     </div>`;
   }).join('');

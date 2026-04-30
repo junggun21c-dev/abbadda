@@ -34,6 +34,6 @@ export default async function handler(req, res) {
     email: profile.response.email || ''
   };
 
-  const encoded = Buffer.from(JSON.stringify(user)).toString('base64');
+  const encoded = encodeURIComponent(Buffer.from(JSON.stringify(user)).toString('base64'));
   res.redirect(`/?nu=${encoded}`);
 }

@@ -2953,9 +2953,10 @@ function initNaverAuth() {
   const err = params.get('login_error');
   if (nu) {
     try {
-      naverUser = JSON.parse(atob(nu));
+      naverUser = JSON.parse(atob(decodeURIComponent(nu)));
+      if (naverUser && !naverUser.name) naverUser.name = '사용자';
       localStorage.setItem('naverUser', JSON.stringify(naverUser));
-    } catch(e) {}
+    } catch(e) { console.error('naver user parse fail', e); }
     history.replaceState({}, '', '/');
   } else if (err) {
     showToast('로그인에 실패했어요. 다시 시도해주세요.');

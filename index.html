@@ -17,14 +17,10 @@
 html{overflow-y:scroll;scrollbar-gutter:stable;}
 body{font-family:'Noto Sans KR',sans-serif;background:#F5F6FA;min-height:100vh;display:flex;justify-content:center;}
 .app{width:100%;max-width:430px;background:#F5F6FA;min-height:100vh;padding-bottom:80px;}
-.header{background:linear-gradient(135deg,#6C63FF 0%,#a855f7 100%);padding:1.2rem 1rem 1rem;border-radius:0 0 28px 28px;position:relative;overflow:hidden;transition:background 1.5s ease;}
+.header{background:linear-gradient(135deg,#6C63FF 0%,#a855f7 100%);padding:1.2rem 1rem 1rem;border-radius:0 0 28px 28px;position:relative;overflow:hidden;transition:background 2s ease;}
 .header-top{display:flex;align-items:center;justify-content:space-between;gap:10px;position:relative;z-index:1;}
 
-/* 날씨별 헤더 배경 */
-.hdr-clear{background:linear-gradient(160deg,#1565c0 0%,#1e88e5 55%,#f57c00 100%)!important;}
-.hdr-cloudy{background:linear-gradient(160deg,#37474f 0%,#546e7a 55%,#607d8b 100%)!important;}
-.hdr-rain{background:linear-gradient(160deg,#0d1b2a 0%,#1b3a5c 55%,#263238 100%)!important;}
-.hdr-snow{background:linear-gradient(160deg,#1a237e 0%,#3d7eb8 55%,#7ec8e3 100%)!important;}
+/* 날씨별 배경은 JS에서 직접 주입 — 클래스는 애니메이션만 담당 */
 
 /* 맑음: 태양 글로우 — 크게 팽창 */
 .hdr-clear::before{content:'';position:absolute;top:-20px;right:5px;width:90px;height:90px;background:radial-gradient(circle,rgba(255,235,59,1) 0%,rgba(255,193,7,.55) 40%,transparent 70%);border-radius:50%;animation:sunPulse 2.5s ease-in-out infinite;pointer-events:none;}
@@ -507,6 +503,55 @@ function recalcDistances() {
   if (!dynamicCoursesLoaded) setTimeout(loadDynamicCourses, 400);
 }
 
+/* ─── 시간×날씨 그라데이션 ─── */
+function getTimeWeatherGradient(weatherIdx) {
+  const h = new Date().getHours();
+  const isDeepNight = h >= 23 || h < 4;   // 밤 (23~4시)
+  const isDawn      = h >= 4  && h < 6;   // 새벽 (4~6시)
+  const isSunrise   = h >= 6  && h < 8;   // 일출 (6~8시)
+  const isMorning   = h >= 8  && h < 12;  // 오전 (8~12시)
+  const isAfternoon = h >= 12 && h < 17;  // 오후 (12~17시)
+  const isSunset    = h >= 17 && h < 20;  // 노을 (17~20시)
+  const isEvening   = h >= 20 && h < 23;  // 저녁 (20~23시)
+
+  if (weatherIdx === 0) { // 맑음
+    if (isDeepNight) return 'linear-gradient(160deg,#020c1b 0%,#0d1b3e 55%,#1a237e 100%)';
+    if (isDawn)      return 'linear-gradient(160deg,#12082a 0%,#3d1a6e 40%,#7b1a1a 75%,#c0392b 100%)';
+    if (isSunrise)   return 'linear-gradient(160deg,#1e3a6e 0%,#d4672a 55%,#ffc107 100%)';
+    if (isMorning)   return 'linear-gradient(160deg,#1565c0 0%,#2196f3 55%,#64b5f6 100%)';
+    if (isAfternoon) return 'linear-gradient(160deg,#1565c0 0%,#1e88e5 55%,#f57c00 100%)';
+    if (isSunset)    return 'linear-gradient(160deg,#b71c1c 0%,#e65100 40%,#ff8f00 70%,#ffd54f 100%)';
+    if (isEvening)   return 'linear-gradient(160deg,#4a148c 0%,#283593 50%,#1a237e 100%)';
+  }
+  if (weatherIdx === 1) { // 흐림
+    if (isDeepNight || isEvening) return 'linear-gradient(160deg,#0d0d1a 0%,#1a1a2e 55%,#252545 100%)';
+    if (isDawn || isSunrise)      return 'linear-gradient(160deg,#1a1a2e 0%,#2d2d45 55%,#546e7a 100%)';
+    if (isSunset)                 return 'linear-gradient(160deg,#2d1f3d 0%,#4a3f5c 55%,#607d8b 100%)';
+    return 'linear-gradient(160deg,#37474f 0%,#546e7a 55%,#607d8b 100%)';
+  }
+  if (weatherIdx === 2) { // 비
+    if (isDeepNight || isEvening) return 'linear-gradient(160deg,#020810 0%,#0a1220 55%,#0d1b2a 100%)';
+    if (isSunset)                 return 'linear-gradient(160deg,#0d1018 0%,#1b2a3c 55%,#263238 100%)';
+    return 'linear-gradient(160deg,#0d1b2a 0%,#1b3a5c 55%,#263238 100%)';
+  }
+  if (weatherIdx === 3) { // 눈
+    if (isDeepNight) return 'linear-gradient(160deg,#0a0e1a 0%,#1a2440 55%,#2d3a5e 100%)';
+    return 'linear-gradient(160deg,#1a237e 0%,#3d7eb8 55%,#7ec8e3 100%)';
+  }
+  // 날씨 미확인 — 시간 기반만
+  if (isDeepNight) return 'linear-gradient(160deg,#020c1b 0%,#0d1b3e 55%,#1a237e 100%)';
+  if (isDawn)      return 'linear-gradient(160deg,#12082a 0%,#3d1a6e 40%,#7b1a1a 75%,#c0392b 100%)';
+  if (isSunrise)   return 'linear-gradient(160deg,#1e3a6e 0%,#d4672a 55%,#ffc107 100%)';
+  if (isSunset)    return 'linear-gradient(160deg,#b71c1c 0%,#e65100 40%,#ff8f00 70%,#ffd54f 100%)';
+  if (isEvening)   return 'linear-gradient(160deg,#4a148c 0%,#283593 50%,#1a237e 100%)';
+  return 'linear-gradient(160deg,#1565c0 0%,#1e88e5 55%,#f57c00 100%)';
+}
+
+function updateHeaderGradient() {
+  const hdr = document.querySelector('.header');
+  if (hdr) hdr.style.background = getTimeWeatherGradient(wIdx);
+}
+
 /* ─── 날씨 상태 설정 ─── */
 function setWeatherState(idx) {
   wIdx = idx;
@@ -518,6 +563,7 @@ function setWeatherState(idx) {
     hdr.classList.remove('hdr-clear','hdr-cloudy','hdr-rain','hdr-snow');
     if(w.headerClass) hdr.classList.add(w.headerClass);
   }
+  updateHeaderGradient();
   shownCourseIds = new Set();
 }
 
@@ -3174,6 +3220,8 @@ renderPopups();
 renderCourses(false);
 initHomeLabel();
 initNaverAuth();
+updateHeaderGradient();
+setInterval(updateHeaderGradient, 60000); // 1분마다 시간 변화 반영
 loadEventsFromTourAPI();
 initLocation();
 setTimeout(() => { loadKakaoSDK(); checkUrlCourse(); checkUrlEvent(); checkUrlDyn(); }, 1500);

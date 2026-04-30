@@ -5,7 +5,30 @@
       <stop offset="100%" style="stop-color:#a855f7"/>
     </linearGradient>
   </defs>
-  <rect width="512" height="512" rx="110" ry="110" fill="url(#bg)"/>
-  <text x="256" y="220" font-family="AppleGothic, NanumGothic, sans-serif" font-size="190" font-weight="900" fill="white" text-anchor="middle" dominant-baseline="middle">ㅇㅃ</text>
-  <text x="256" y="390" font-family="AppleGothic, NanumGothic, sans-serif" font-size="190" font-weight="900" fill="white" text-anchor="middle" dominant-baseline="middle">ㄸㄹ</text>
+  <rect width="512" height="512" rx="100" ry="100" fill="url(#bg)"/>
+
+  <!-- 셀 크기 256x256, 안쪽 여백 36px, 글자 크기 158 -->
+  <!-- ㅇ (좌상) -->
+  <text x="130" y="148"
+    font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif"
+    font-size="158" font-weight="900"
+    fill="white" text-anchor="middle" dominant-baseline="central">ㅇ</text>
+
+  <!-- ㅃ (우상) -->
+  <text x="382" y="148"
+    font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif"
+    font-size="158" font-weight="900"
+    fill="white" text-anchor="middle" dominant-baseline="central">ㅃ</text>
+
+  <!-- ㄸ (좌하) -->
+  <text x="130" y="375"
+    font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif"
+    font-size="158" font-weight="900"
+    fill="white" text-anchor="middle" dominant-baseline="central">ㄸ</text>
+
+  <!-- ㄹ (우하) -->
+  <text x="382" y="375"
+    font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif"
+    font-size="158" font-weight="900"
+    fill="white" text-anchor="middle" dominant-baseline="central">ㄹ</text>
 </svg>

@@ -2953,7 +2953,8 @@ function initNaverAuth() {
   const err = params.get('login_error');
   if (nu) {
     try {
-      naverUser = JSON.parse(atob(decodeURIComponent(nu)));
+      const bytes = Uint8Array.from(atob(decodeURIComponent(nu)), c => c.charCodeAt(0));
+      naverUser = JSON.parse(new TextDecoder('utf-8').decode(bytes));
       if (naverUser && !naverUser.name) naverUser.name = '사용자';
       localStorage.setItem('naverUser', JSON.stringify(naverUser));
     } catch(e) { console.error('naver user parse fail', e); }

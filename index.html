@@ -1904,7 +1904,7 @@ function renderCourseDetail(){
     <div class="tl-item">
       <div class="tl-left">
         <div class="tl-num">${i+1}</div>
-        <div class="tl-vseg">${i<c.timeline.length-1?(tr[i]?'<span class="tl-transit-lbl">'+fmtMin(tr[i].min)+'</span>':''):'<span class="tl-transit-lbl">'+fmtDrive(c.drive)+'</span>'}</div>
+        <div class="tl-vseg">${i<c.timeline.length-1?(tr[i]?'<span class="tl-transit-lbl">'+fmtMin(tr[i].min)+(tr[i].km?'<br><span style="font-size:9px;opacity:.7">'+tr[i].km+'km</span>':'')+'</span>':''):'<span class="tl-transit-lbl">'+fmtDrive(c.drive)+'</span>'}</div>
       </div>
       <div class="tl-right">
         <div class="tl-header">
@@ -2059,7 +2059,7 @@ async function changeStep(stepIdx){
 
   // 장소 좌표가 바뀌었으므로 인접 구간 이동 시간 재계산
   // 5분/km 기준 (서울 시내 차량 이동), 최소 3분
-  const stepMin = km => Math.max(3, Math.round(km * 5));
+  const stepMin = km => Math.max(1, Math.round(km * 5));
   if(!c.transit) c.transit = [];
   const prevS = stepIdx > 0 ? c.timeline[stepIdx-1] : null;
   const nextS = stepIdx < c.timeline.length-1 ? c.timeline[stepIdx+1] : null;
@@ -3097,7 +3097,7 @@ async function enrichDynamicCourse(c) {
     c.stops[2] = cf.place_name;
   }
   // 실제 좌표로 transit 초기화 (hardcoded 값 대체)
-  const enrichMin = km => Math.max(3, Math.round(km * 5));
+  const enrichMin = km => Math.max(1, Math.round(km * 5));
   const food = c.timeline[1];
   const cafe = c.timeline[2];
   if (!c.transit) c.transit = [];

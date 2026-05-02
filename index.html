@@ -2382,12 +2382,15 @@ function commitAddr(v, lat, lng, resolvedName) {
   saveAddrHistory(hist);
   document.getElementById('homeLabel').textContent=v.length>8?v.slice(0,8)+'…':v;
   if(lat && lng){ userLat=lat; userLng=lng; localStorage.setItem('homeLatLng', JSON.stringify({lat,lng})); recalcDistances(); }
+  // 지역 변경 시 행사 DB 초기화 → renderEvents가 로딩 상태 표시
+  EVENTS_DB = [];
+  tourApiLoaded = false;
   shownCourseIds=new Set();
   renderCourses(true); renderEvents(); renderPopups();
   closeHomeModal();
   const label = resolvedName ? resolvedName.split(' ').slice(0,2).join(' ') : v.split(' ').slice(0,2).join(' ');
   showToast('📍 ' + label + ' 기준으로 저장됐어요');
-  tourApiLoaded=false; loadEventsFromTourAPI();
+  loadEventsFromTourAPI();
   popupLoaded=false; loadPopupsFromKakao();
   // 이전 위치 기반 동적 코스 제거 (찜된 코스는 유지)
   for(let i=COURSES_DB.length-1;i>=0;i--){ if(COURSES_DB[i].isDynamic && !favs.has(COURSES_DB[i].id)) COURSES_DB.splice(i,1); }

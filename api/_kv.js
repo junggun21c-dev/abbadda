@@ -1,8 +1,8 @@
-// Vercel KV (Upstash Redis) REST API 헬퍼
-// 환경변수: KV_REST_API_URL, KV_REST_API_TOKEN (Vercel KV 연결 시 자동 주입)
+// Upstash Redis REST API 헬퍼
+// 환경변수: UPSTASH_REDIS_REST_URL, UPSTASH_REDIS_REST_TOKEN (Upstash 마켓플레이스 연결 시 자동 주입)
 
-const BASE  = () => process.env.KV_REST_API_URL;
-const TOKEN = () => process.env.KV_REST_API_TOKEN;
+const BASE  = () => process.env.UPSTASH_REDIS_REST_URL  || process.env.KV_REST_API_URL;
+const TOKEN = () => process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
 
 async function kv(cmd) {
   const base = BASE(), token = TOKEN();

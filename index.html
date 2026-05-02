@@ -1411,17 +1411,50 @@ const ages=['5살','7살','9살','11살','13살'];
 const members=['2인(부부)','3인 가족','4인 가족','5인 이상'];
 let wIdx=0,aIdx=3,mIdx=1,catVal='전체',distMin=0,distMax=9999;
 let currentTemp=null;
-// favs는 코스 id(숫자)를 저장. 구버전(배열 인덱스) 마이그레이션 포함
-let favs=(()=>{
-  const raw=JSON.parse(localStorage.getItem('favs')||'[]');
-  // 구버전: 0~50 범위의 작은 숫자 → 코스 id로 변환(index+1)
-  const migrated=raw.map(v=>{ if(v>=0&&v<=50){ const c=COURSES_DB[v]; return c?c.id:null; } return v; }).filter(Boolean);
-  return new Set(migrated);
+// favs: 코스 id(숫자) Set. 다중 안전장치(localStorage + 백업)로 유실 방지
+function _readFavsKey(key) {
+  try {
+    const raw = JSON.parse(localStorage.getItem(key) || '[]');
+    return Array.isArray(raw) ? raw.filter(v => typeof v === 'number') : [];
+  } catch { return []; }
+}
+let favs = (() => {
+  const main = _readFavsKey('favs');
+  const backup = _readFavsKey('favsBackup');
+  // 백업이 메인보다 많으면 → 메인이 사라진 것 → 백업 복원
+  const arr = backup.length > main.length ? backup : main;
+  return new Set(arr);
 })();
-function saveFavs(sync=true){localStorage.setItem('favs',JSON.stringify([...favs]));if(sync)scheduleSync();}
+function saveFavs(sync=true) {
+  const arr = [...favs];
+  try {
+    localStorage.setItem('favs', JSON.stringify(arr));
+    // 이중 백업: 비어있지 않을 때만 백업 갱신 (실수로 비워졌을 때 복구용)
+    if (arr.length > 0) {
+      localStorage.setItem('favsBackup', JSON.stringify(arr));
+      localStorage.setItem('favsBackupTs', String(Date.now()));
+    }
+  } catch(e) { console.error('saveFavs fail', e); }
+  if (sync) scheduleSync();
+}
 let currentCourseIdx=-1,pendingDeleteStepIdx=-1;
-let homeAddr = localStorage.getItem('homeAddr') || '출발지 미설정';
-let homeAddrManual = localStorage.getItem('homeAddrManual') === '1'; // 사용자 직접 설정 여부
+// homeAddr: 백업 키와 함께 이중 저장하여 유실 방지
+let homeAddr = (() => {
+  const main = localStorage.getItem('homeAddr');
+  const backup = localStorage.getItem('homeAddrBackup');
+  // 메인이 비었거나 '미설정'인데 백업에 실제 주소가 있으면 → 백업 복원
+  if ((!main || main === '출발지 미설정') && backup && backup !== '출발지 미설정') {
+    localStorage.setItem('homeAddr', backup);
+    return backup;
+  }
+  return main || '출발지 미설정';
+})();
+let homeAddrManual = (() => {
+  const main = localStorage.getItem('homeAddrManual');
+  const backup = localStorage.getItem('homeAddrManualBackup');
+  if (main === '1' || backup === '1') return true;
+  return false;
+})();
 // 좌표 복원: homeLatLng 우선 (GPS/수동 모두 저장), 없으면 히스토리 폴백
 try {
   const _ll = JSON.parse(localStorage.getItem('homeLatLng') || 'null');
@@ -2373,8 +2406,12 @@ async function validateAndSaveAddr(v) {
 }
 
 function commitAddr(v, lat, lng, resolvedName) {
-  homeAddr=v; localStorage.setItem('homeAddr', v);
-  homeAddrManual=true; localStorage.setItem('homeAddrManual','1');
+  homeAddr=v;
+  localStorage.setItem('homeAddr', v);
+  localStorage.setItem('homeAddrBackup', v); // 이중 저장
+  homeAddrManual=true;
+  localStorage.setItem('homeAddrManual','1');
+  localStorage.setItem('homeAddrManualBackup','1'); // 이중 저장
   // 히스토리 저장 (중복 제거 후 최신순, 최대 10개)
   let hist = getAddrHistory().filter(h => h.addr !== v);
   hist.unshift({ addr: v, lat: lat||null, lng: lng||null, name: resolvedName||null });
@@ -3207,39 +3244,44 @@ function initNaverAuth() {
 /* ─── 서버 데이터 불러오기 (로그인 시) ─── */
 async function loadFromServer() {
   if (!sessionToken) return;
+  console.log('[sync] loadFromServer 시작. 로컬 favs:', [...favs], '로컬 home:', homeAddr);
   try {
     const resp = await fetch('/api/user/load', {
       headers: { Authorization: `Bearer ${sessionToken}` }
     });
     if (resp.status === 401) {
-      // 세션 만료 → 토큰 초기화 (재로그인 필요)
+      console.warn('[sync] 세션 만료 (401). 토큰 초기화');
       sessionToken = null; localStorage.removeItem('sessionToken'); return;
     }
-    if (!resp.ok) return;
+    if (!resp.ok) {
+      console.warn('[sync] 서버 응답 실패:', resp.status);
+      // 응답 실패 시에도 로컬 데이터 보호: 서버 백업 시도
+      if (favs.size > 0 || homeAddr !== '출발지 미설정') scheduleSync();
+      return;
+    }
     const data = await resp.json();
+    console.log('[sync] 서버 응답:', data);
 
-    // 찜: 서버 + 로컬 합집합 (서버 데이터가 있으면 무조건 추가 — 로컬이 비어도 복원)
+    // 찜: 서버 + 로컬 합집합 (절대 로컬 데이터를 삭제하지 않음)
     if (Array.isArray(data.favs) && data.favs.length > 0) {
-      let changed = false;
-      data.favs.forEach(id => { if (!favs.has(id)) { favs.add(id); changed = true; } });
-      if (changed) {
-        saveFavs(false); // localStorage 반영 (서버 재전송 없이)
+      let added = 0;
+      data.favs.forEach(id => { if (typeof id === 'number' && !favs.has(id)) { favs.add(id); added++; } });
+      if (added > 0) {
+        saveFavs(false); // localStorage 반영 (sync 트리거하지 않음 — 아래에서 강제 sync)
         renderCourses(false);
         if (currentTab === 'fav') renderFavPage();
         showToast(`❤️ 저장된 코스 ${favs.size}개를 복원했어요!`);
       }
-    }
-    // 로컬에도 없고 서버에도 없으면 → 현재 로컬 상태 서버에 업로드 (첫 로그인 시 백업)
-    if (favs.size > 0 && (!data.favs || data.favs.length === 0)) {
-      scheduleSync();
     }
 
     // 출발지: 서버 데이터를 로컬에 없을 때만 적용 (로컬 우선)
     if (data.home && data.home.addr && homeAddr === '출발지 미설정') {
       homeAddr = data.home.addr;
       localStorage.setItem('homeAddr', data.home.addr);
+      localStorage.setItem('homeAddrBackup', data.home.addr);
       homeAddrManual = !!data.home.manual;
       localStorage.setItem('homeAddrManual', homeAddrManual ? '1' : '0');
+      if (homeAddrManual) localStorage.setItem('homeAddrManualBackup', '1');
       if (data.home.lat && data.home.lng) {
         userLat = data.home.lat; userLng = data.home.lng;
         localStorage.setItem('homeLatLng', JSON.stringify({ lat: userLat, lng: userLng }));
@@ -3247,8 +3289,22 @@ async function loadFromServer() {
       }
       document.getElementById('homeLabel').textContent =
         data.home.addr.length > 8 ? data.home.addr.slice(0, 8) + '…' : data.home.addr;
+      console.log('[sync] 서버에서 출발지 복원:', homeAddr);
     }
-  } catch(e) { console.log('loadFromServer fail', e); }
+
+    // 로그인 직후 무조건 로컬 → 서버 백업 강제 실행
+    // 이유: 로컬 데이터가 서버보다 많거나, 서버에 누락된 항목이 있을 수 있음
+    // (병합 후 favs는 항상 로컬+서버 합집합이므로 안전)
+    if (favs.size > 0 || homeAddr !== '출발지 미설정') {
+      console.log('[sync] 로그인 직후 강제 백업 → 서버');
+      // 즉시 sync (debounce 없이)
+      syncToServer();
+    }
+  } catch(e) {
+    console.error('[sync] loadFromServer 예외:', e);
+    // 네트워크 오류 시에도 로컬 데이터 보호: 나중에 다시 sync 시도
+    if (favs.size > 0 || homeAddr !== '출발지 미설정') scheduleSync();
+  }
 }
 
 /* ─── 서버에 저장 (debounce 1.5s) ─── */
@@ -3260,16 +3316,34 @@ function scheduleSync() {
 }
 async function syncToServer() {
   if (!sessionToken) return;
+  const favsArr = [...favs];
+  const home = homeAddr !== '출발지 미설정'
+    ? { addr: homeAddr, lat: userLat, lng: userLng, manual: homeAddrManual }
+    : null;
+  // 보호: 빈 데이터로 서버 덮어쓰기 방지 (둘 다 비어있으면 sync 의미 없음)
+  if (favsArr.length === 0 && !home) {
+    console.log('[sync] syncToServer: 보낼 데이터 없음, 스킵');
+    return;
+  }
   try {
-    const home = homeAddr !== '출발지 미설정'
-      ? { addr: homeAddr, lat: userLat, lng: userLng, manual: homeAddrManual }
-      : null;
-    await fetch('/api/user/save', {
+    console.log('[sync] syncToServer →', { favs: favsArr.length, home: home?.addr });
+    const resp = await fetch('/api/user/save', {
       method: 'POST',
       headers: { Authorization: `Bearer ${sessionToken}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ favs: [...favs], home })
+      body: JSON.stringify({ favs: favsArr, home })
     });
-  } catch(e) { console.log('syncToServer fail', e); }
+    if (!resp.ok) {
+      console.warn('[sync] save 실패:', resp.status);
+      // 실패 시 30초 후 재시도
+      setTimeout(() => scheduleSync(), 30000);
+    } else {
+      console.log('[sync] save 성공');
+    }
+  } catch(e) {
+    console.error('[sync] syncToServer 예외:', e);
+    // 네트워크 오류 시 30초 후 재시도
+    setTimeout(() => scheduleSync(), 30000);
+  }
 }
 
 function renderNaverBtn() {

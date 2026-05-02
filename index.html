@@ -1411,7 +1411,7 @@ const ages=['5살','7살','9살','11살','13살'];
 const members=['2인(부부)','3인 가족','4인 가족','5인 이상'];
 let wIdx=0,aIdx=3,mIdx=1,catVal='전체',distMin=0,distMax=9999;
 let currentTemp=null;
-// favs: 코스 id(숫자) Set. 다중 안전장치(localStorage + 백업)로 유실 방지
+// favs: 코스 id(숫자) Set. 다중 안전장치로 유실 방지
 function _readFavsKey(key) {
   try {
     const raw = JSON.parse(localStorage.getItem(key) || '[]');
@@ -1419,17 +1419,35 @@ function _readFavsKey(key) {
   } catch { return []; }
 }
 let favs = (() => {
-  const main = _readFavsKey('favs');
-  const backup = _readFavsKey('favsBackup');
-  // 백업이 메인보다 많으면 → 메인이 사라진 것 → 백업 복원
-  const arr = backup.length > main.length ? backup : main;
-  return new Set(arr);
+  // 핵심 원칙: 'favs' 키가 EXIST 하면 (값이 비어있더라도) 그게 사용자의 의도임
+  // 'favs' 키 자체가 null(완전히 사라짐)일 때만 백업에서 복원 — localStorage 초기화 같은 환경적 손실에 대응
+  const mainRaw = localStorage.getItem('favs');
+  if (mainRaw === null) {
+    const backup = _readFavsKey('favsBackup');
+    if (backup.length > 0) {
+      localStorage.setItem('favs', JSON.stringify(backup));
+      console.log('[init] favs 메인 키 사라짐 → 백업 복원:', backup.length, '개');
+      return new Set(backup);
+    }
+    return new Set();
+  }
+  return new Set(_readFavsKey('favs'));
 })();
+// 사용자가 의도적으로 삭제한 ID 추적 (서버에서 부활 방지)
+let _deletedFavs = (() => {
+  try {
+    const raw = JSON.parse(localStorage.getItem('deletedFavs') || '[]');
+    return new Set(Array.isArray(raw) ? raw.filter(v => typeof v === 'number') : []);
+  } catch { return new Set(); }
+})();
+function _saveDeletedFavs() {
+  try { localStorage.setItem('deletedFavs', JSON.stringify([...(_deletedFavs)])); } catch {}
+}
 function saveFavs(sync=true) {
   const arr = [...favs];
   try {
     localStorage.setItem('favs', JSON.stringify(arr));
-    // 이중 백업: 비어있지 않을 때만 백업 갱신 (실수로 비워졌을 때 복구용)
+    // 백업: 비어있지 않을 때만 갱신 (의도적 삭제는 백업 부활 방지를 위해 안 함)
     if (arr.length > 0) {
       localStorage.setItem('favsBackup', JSON.stringify(arr));
       localStorage.setItem('favsBackupTs', String(Date.now()));
@@ -1438,22 +1456,23 @@ function saveFavs(sync=true) {
   if (sync) scheduleSync();
 }
 let currentCourseIdx=-1,pendingDeleteStepIdx=-1;
-// homeAddr: 백업 키와 함께 이중 저장하여 유실 방지
+// homeAddr: 메인 키가 null일 때만 백업 복원 (의도적 미설정 vs 환경 손실 구분)
 let homeAddr = (() => {
   const main = localStorage.getItem('homeAddr');
+  if (main !== null) return main; // 명시적 값('출발지 미설정' 포함)이 있으면 그대로 사용
   const backup = localStorage.getItem('homeAddrBackup');
-  // 메인이 비었거나 '미설정'인데 백업에 실제 주소가 있으면 → 백업 복원
-  if ((!main || main === '출발지 미설정') && backup && backup !== '출발지 미설정') {
+  if (backup && backup !== '출발지 미설정') {
     localStorage.setItem('homeAddr', backup);
+    console.log('[init] homeAddr 메인 키 사라짐 → 백업 복원:', backup);
     return backup;
   }
-  return main || '출발지 미설정';
+  return '출발지 미설정';
 })();
 let homeAddrManual = (() => {
   const main = localStorage.getItem('homeAddrManual');
-  const backup = localStorage.getItem('homeAddrManualBackup');
-  if (main === '1' || backup === '1') return true;
-  return false;
+  if (main !== null) return main === '1';
+  // 메인 키 없을 때만 백업 확인
+  return localStorage.getItem('homeAddrManualBackup') === '1';
 })();
 // 좌표 복원: homeLatLng 우선 (GPS/수동 모두 저장), 없으면 히스토리 폴백
 try {
@@ -1927,7 +1946,18 @@ async function loadMoreCourses(){
   },50);
 }
 
-function toggleFav(courseId,el){favs.has(courseId)?(favs.delete(courseId),el.textContent='🤍'):(favs.add(courseId),el.textContent='❤️');saveFavs();}
+function toggleFav(courseId,el){
+  if(favs.has(courseId)){
+    favs.delete(courseId); el.textContent='🤍';
+    _deletedFavs.add(courseId); _saveDeletedFavs(); // 의도적 삭제 추적
+    saveFavs(false);
+    syncToServer({force:true}); // 즉시 서버 반영 (force = 빈 배열도 허용)
+  } else {
+    favs.add(courseId); el.textContent='❤️';
+    _deletedFavs.delete(courseId); _saveDeletedFavs(); // 재추가 시 삭제 기록 제거
+    saveFavs();
+  }
+}
 
 async function openCourse(idx){
   currentCourseIdx=idx;
@@ -2711,15 +2741,23 @@ function renderFavPage(){
 
 function removeFav(courseId,el){
   favs.delete(courseId);
-  saveFavs();
+  _deletedFavs.add(courseId); _saveDeletedFavs(); // 의도적 삭제 추적
+  saveFavs(false);
+  syncToServer({force:true}); // 즉시 서버 반영
   renderFavPage();
   renderCourses(false);
   showToast('저장이 취소됐어요');
 }
 
 function clearAllFavs(){
+  // 모든 ID를 삭제 기록에 추가 (서버 부활 방지)
+  favs.forEach(id => _deletedFavs.add(id));
+  _saveDeletedFavs();
   favs.clear();
-  saveFavs();
+  // 백업도 함께 비움 (의도적 전체 삭제)
+  try { localStorage.removeItem('favsBackup'); localStorage.removeItem('favsBackupTs'); } catch {}
+  saveFavs(false);
+  syncToServer({force:true}); // 즉시 서버 반영
   renderFavPage();
   renderCourses(false);
   showToast('전체 삭제됐어요');
@@ -3262,12 +3300,22 @@ async function loadFromServer() {
     const data = await resp.json();
     console.log('[sync] 서버 응답:', data);
 
-    // 찜: 서버 + 로컬 합집합 (절대 로컬 데이터를 삭제하지 않음)
+    // 서버의 삭제 기록을 로컬에 병합 (다른 디바이스에서 삭제한 항목도 부활 방지)
+    if (Array.isArray(data.deleted)) {
+      data.deleted.forEach(id => { if (typeof id === 'number') _deletedFavs.add(id); });
+      _saveDeletedFavs();
+    }
+
+    // 찜: 서버 + 로컬 합집합. 단, 사용자가 의도적으로 삭제한 ID(_deletedFavs)는 서버에서 부활시키지 않음
     if (Array.isArray(data.favs) && data.favs.length > 0) {
       let added = 0;
-      data.favs.forEach(id => { if (typeof id === 'number' && !favs.has(id)) { favs.add(id); added++; } });
+      data.favs.forEach(id => {
+        if (typeof id !== 'number') return;
+        if (_deletedFavs.has(id)) return; // 사용자가 삭제한 항목은 부활 방지
+        if (!favs.has(id)) { favs.add(id); added++; }
+      });
       if (added > 0) {
-        saveFavs(false); // localStorage 반영 (sync 트리거하지 않음 — 아래에서 강제 sync)
+        saveFavs(false);
         renderCourses(false);
         if (currentTab === 'fav') renderFavPage();
         showToast(`❤️ 저장된 코스 ${favs.size}개를 복원했어요!`);
@@ -3314,34 +3362,33 @@ function scheduleSync() {
   clearTimeout(_syncTimer);
   _syncTimer = setTimeout(syncToServer, 1500);
 }
-async function syncToServer() {
+async function syncToServer(opts={}) {
   if (!sessionToken) return;
   const favsArr = [...favs];
   const home = homeAddr !== '출발지 미설정'
     ? { addr: homeAddr, lat: userLat, lng: userLng, manual: homeAddrManual }
     : null;
-  // 보호: 빈 데이터로 서버 덮어쓰기 방지 (둘 다 비어있으면 sync 의미 없음)
-  if (favsArr.length === 0 && !home) {
+  const force = !!opts.force;
+  // force가 아닌 경우만: 보낼 데이터 없으면 스킵 (네트워크 절약)
+  if (!force && favsArr.length === 0 && !home) {
     console.log('[sync] syncToServer: 보낼 데이터 없음, 스킵');
     return;
   }
   try {
-    console.log('[sync] syncToServer →', { favs: favsArr.length, home: home?.addr });
+    console.log('[sync] syncToServer →', { favs: favsArr.length, home: home?.addr, force });
     const resp = await fetch('/api/user/save', {
       method: 'POST',
       headers: { Authorization: `Bearer ${sessionToken}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ favs: favsArr, home })
+      body: JSON.stringify({ favs: favsArr, home, force, deleted: [..._deletedFavs] })
     });
     if (!resp.ok) {
       console.warn('[sync] save 실패:', resp.status);
-      // 실패 시 30초 후 재시도
       setTimeout(() => scheduleSync(), 30000);
     } else {
       console.log('[sync] save 성공');
     }
   } catch(e) {
     console.error('[sync] syncToServer 예외:', e);
-    // 네트워크 오류 시 30초 후 재시도
     setTimeout(() => scheduleSync(), 30000);
   }
 }

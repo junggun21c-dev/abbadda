@@ -13,13 +13,15 @@ export default async function handler(req, res) {
   let sess;
   try { sess = JSON.parse(sessRaw); } catch { return res.status(401).json({ error: 'bad_session' }); }
 
-  const [favsRaw, homeRaw] = await Promise.all([
+  const [favsRaw, homeRaw, deletedRaw] = await Promise.all([
     kvGet(`user:${sess.id}:favs`),
-    kvGet(`user:${sess.id}:home`)
+    kvGet(`user:${sess.id}:home`),
+    kvGet(`user:${sess.id}:deleted`)
   ]);
 
   return res.status(200).json({
-    favs: favsRaw ? JSON.parse(favsRaw) : null,   // number[]
-    home: homeRaw ? JSON.parse(homeRaw) : null,   // { addr, lat, lng, manual }
+    favs: favsRaw ? JSON.parse(favsRaw) : null,    // number[]
+    home: homeRaw ? JSON.parse(homeRaw) : null,    // { addr, lat, lng, manual } 또는 null
+    deleted: deletedRaw ? JSON.parse(deletedRaw) : null, // 의도적 삭제 ID
   });
 }

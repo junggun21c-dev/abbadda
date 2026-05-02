@@ -14,46 +14,61 @@ export default async function handler(req, res) {
   let sess;
   try { sess = JSON.parse(sessRaw); } catch { return res.status(401).json({ error: 'bad_session' }); }
 
-  const { favs, home } = req.body || {};
+  const { favs, home, force, deleted } = req.body || {};
   const saves = [];
   const result = { ok: true, saved: {} };
+  const isForce = !!force;
 
-  // 찜: 빈 배열로 덮어쓰기 방지 (실수로 favs가 비워진 경우 보호)
-  // 단, 명시적으로 [] 를 보낸 경우 = 사용자가 전체 삭제했을 가능성 → 기존 데이터 확인 후 결정
+  // 찜 처리
   if (Array.isArray(favs)) {
     if (favs.length > 0) {
-      // 정상 케이스: 클라이언트의 favs를 그대로 저장
+      // 정상 케이스: 비어있지 않은 favs는 그대로 저장
       saves.push(kvSet(`user:${sess.id}:favs`, JSON.stringify(favs)));
       result.saved.favs = favs.length;
     } else {
-      // 빈 배열: 기존 서버 데이터가 있으면 덮어쓰지 않음 (안전 우선)
-      const existing = await kvGet(`user:${sess.id}:favs`);
-      if (!existing) {
-        // 서버도 비어있으면 저장 안함 (의미 없음)
+      // 빈 배열: force=true면 의도적 삭제로 간주, 그대로 저장. 아니면 보호
+      if (isForce) {
+        saves.push(kvSet(`user:${sess.id}:favs`, JSON.stringify([])));
         result.saved.favs = 0;
       } else {
-        // 서버에 데이터가 있는데 빈 배열이 들어오면 → 의도치 않은 데이터 손실 가능 → 거부
-        console.warn(`[save] 빈 favs 거부 (userId: ${sess.id}, 기존 데이터 있음)`);
-        result.saved.favs = 'rejected_empty';
+        const existing = await kvGet(`user:${sess.id}:favs`);
+        if (!existing) {
+          result.saved.favs = 0;
+        } else {
+          // 의도치 않은 빈 배열 → 거부 (데이터 보호)
+          console.warn(`[save] 빈 favs 거부 (userId: ${sess.id}, force=false)`);
+          result.saved.favs = 'rejected_empty';
+        }
       }
     }
   }
 
-  // 출발지: null로 덮어쓰기 방지
+  // 출발지 처리
   if (home !== undefined) {
     if (home && home.addr) {
       saves.push(kvSet(`user:${sess.id}:home`, JSON.stringify(home)));
       result.saved.home = home.addr;
     } else {
-      // null이거나 addr 없음 → 서버에 기존 데이터가 있으면 보호
-      const existing = await kvGet(`user:${sess.id}:home`);
-      if (existing) {
-        console.warn(`[save] null home 거부 (userId: ${sess.id})`);
-        result.saved.home = 'rejected_null';
-      } else {
+      // null: force면 그대로 저장, 아니면 기존 데이터 보호
+      if (isForce) {
+        saves.push(kvSet(`user:${sess.id}:home`, JSON.stringify(null)));
         result.saved.home = null;
+      } else {
+        const existing = await kvGet(`user:${sess.id}:home`);
+        if (existing) {
+          console.warn(`[save] null home 거부 (userId: ${sess.id})`);
+          result.saved.home = 'rejected_null';
+        } else {
+          result.saved.home = null;
+        }
       }
     }
+  }
+
+  // 삭제 기록 저장 (다른 디바이스에서 부활 방지용)
+  if (Array.isArray(deleted) && deleted.length > 0) {
+    saves.push(kvSet(`user:${sess.id}:deleted`, JSON.stringify(deleted)));
+    result.saved.deleted = deleted.length;
   }
 
   await Promise.all(saves);

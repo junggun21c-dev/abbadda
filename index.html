@@ -1389,7 +1389,7 @@ let favs=(()=>{
   const migrated=raw.map(v=>{ if(v>=0&&v<=50){ const c=COURSES_DB[v]; return c?c.id:null; } return v; }).filter(Boolean);
   return new Set(migrated);
 })();
-function saveFavs(){localStorage.setItem('favs',JSON.stringify([...favs]));}
+function saveFavs(sync=true){localStorage.setItem('favs',JSON.stringify([...favs]));if(sync)scheduleSync();}
 let currentCourseIdx=-1,pendingDeleteStepIdx=-1;
 let homeAddr = localStorage.getItem('homeAddr') || '출발지 미설정';
 let homeAddrManual = localStorage.getItem('homeAddrManual') === '1'; // 사용자 직접 설정 여부
@@ -2363,6 +2363,7 @@ function commitAddr(v, lat, lng, resolvedName) {
   // 이전 위치 기반 동적 코스 제거 (찜된 코스는 유지)
   for(let i=COURSES_DB.length-1;i>=0;i--){ if(COURSES_DB[i].isDynamic && !favs.has(COURSES_DB[i].id)) COURSES_DB.splice(i,1); }
   dynamicCoursesLoaded=false; loadDynamicCourses();
+  scheduleSync();
 }
 function closeModal(){document.getElementById('modal').classList.remove('open');}
 function showToast(msg){
@@ -3137,14 +3138,16 @@ async function enrichDynamicCourse(c) {
   if (r || cf) showToast(`${r?r.place_name:'맛집'} 등 근처 정보를 찾았어요! 🎉`);
 }
 
-/* ─── 네이버 로그인 ─── */
+/* ─── 네이버 로그인 + KV 동기화 ─── */
 let naverUser = null;
+let sessionToken = localStorage.getItem('sessionToken') || null;
 
 function initNaverAuth() {
-  // 콜백으로 돌아왔을 때 ?nu= 파라미터 처리
   const params = new URLSearchParams(location.search);
-  const nu = params.get('nu');
+  const nu  = params.get('nu');
+  const st  = params.get('st');
   const err = params.get('login_error');
+
   if (nu) {
     try {
       const bytes = Uint8Array.from(atob(decodeURIComponent(nu)), c => c.charCodeAt(0));
@@ -3152,15 +3155,70 @@ function initNaverAuth() {
       if (naverUser && !naverUser.name) naverUser.name = '사용자';
       localStorage.setItem('naverUser', JSON.stringify(naverUser));
     } catch(e) { console.error('naver user parse fail', e); }
+    // 세션 토큰 저장 (KV 연결된 경우 서버가 제공)
+    if (st) { sessionToken = st; localStorage.setItem('sessionToken', st); }
     history.replaceState({}, '', '/');
+    // 로그인 직후 서버 데이터 복원 (비동기)
+    loadFromServer();
   } else if (err) {
     showToast('로그인에 실패했어요. 다시 시도해주세요.');
     history.replaceState({}, '', '/');
   } else {
     const saved = localStorage.getItem('naverUser');
     if (saved) try { naverUser = JSON.parse(saved); } catch(e) {}
+    // 기존 로그인 세션이 있으면 서버 데이터 동기화
+    if (naverUser && sessionToken) loadFromServer();
   }
   renderNaverBtn();
+}
+
+/* ─── 서버 데이터 불러오기 (로그인 시) ─── */
+async function loadFromServer() {
+  if (!sessionToken) return;
+  try {
+    const resp = await fetch('/api/user/load', {
+      headers: { Authorization: `Bearer ${sessionToken}` }
+    });
+    if (resp.status === 401) {
+      // 세션 만료 → 토큰 초기화 (재로그인 필요)
+      sessionToken = null; localStorage.removeItem('sessionToken'); return;
+    }
+    if (!resp.ok) return;
+    const data = await resp.json();
+
+    // 찜: 서버 + 로컬 합집합
+    if (Array.isArray(data.favs) && data.favs.length > 0) {
+      let changed = false;
+      data.favs.forEach(id => { if (!favs.has(id)) { favs.add(id); changed = true; } });
+      if (changed) { saveFavs(false); renderCourses(false); if(currentTab==='fav') renderFavPage(); }
+    }
+
+    // 출발지: 서버 데이터를 로컬에 없을 때만 적용 (로컬 우선)
+    if (data.home && data.home.addr && homeAddr === '출발지 미설정') {
+      commitAddr(data.home.addr, data.home.lat || null, data.home.lng || null, null);
+    }
+  } catch(e) { console.log('loadFromServer fail', e); }
+}
+
+/* ─── 서버에 저장 (debounce 1.5s) ─── */
+let _syncTimer = null;
+function scheduleSync() {
+  if (!sessionToken) return;
+  clearTimeout(_syncTimer);
+  _syncTimer = setTimeout(syncToServer, 1500);
+}
+async function syncToServer() {
+  if (!sessionToken) return;
+  try {
+    const home = homeAddr !== '출발지 미설정'
+      ? { addr: homeAddr, lat: userLat, lng: userLng, manual: homeAddrManual }
+      : null;
+    await fetch('/api/user/save', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${sessionToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ favs: [...favs], home })
+    });
+  } catch(e) { console.log('syncToServer fail', e); }
 }
 
 function renderNaverBtn() {
@@ -3191,7 +3249,9 @@ function naverLogin() {
 
 function naverLogout() {
   naverUser = null;
+  sessionToken = null;
   localStorage.removeItem('naverUser');
+  localStorage.removeItem('sessionToken');
   renderNaverBtn();
   showToast('로그아웃 됐어요');
 }

@@ -1,3 +1,5 @@
+import { kvSet, kvExists } from '../_kv.js';
+
 export default async function handler(req, res) {
   const { code, state } = req.query;
 
@@ -34,6 +36,14 @@ export default async function handler(req, res) {
     email: profile.response.email || ''
   };
 
+  // 세션 토큰 생성 (KV가 연결된 경우)
+  let sessionToken = '';
+  if (kvExists()) {
+    sessionToken = crypto.randomUUID();
+    await kvSet(`sess:${sessionToken}`, JSON.stringify(user), 30 * 24 * 3600); // 30일
+  }
+
   const encoded = encodeURIComponent(Buffer.from(JSON.stringify(user)).toString('base64'));
-  res.redirect(`/?nu=${encoded}`);
+  const stParam = sessionToken ? `&st=${sessionToken}` : '';
+  res.redirect(`/?nu=${encoded}${stParam}`);
 }

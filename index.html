@@ -2087,7 +2087,13 @@ async function changeStep(stepIdx){
 
   renderCourseDetail();
   renderCourseMap(c);
-  showToast('새로운 코스를 추천합니다 ✨');
+  // 디버그: 실제 계산된 transit 값 확인 (확인 후 제거 예정)
+  const _t0 = c.transit[stepIdx-1], _t1 = c.transit[stepIdx];
+  const _dbg = [
+    stepIdx>0 ? `앞: ${_t0?.km}km/${_t0?.min}분` : '',
+    stepIdx<c.timeline.length-1 ? `뒤: ${_t1?.km}km/${_t1?.min}분` : ''
+  ].filter(Boolean).join(' | ');
+  showToast(`${s.place} [${_dbg}]`);
 }
 
 function askDeleteStep(stepIdx){pendingDeleteStepIdx=stepIdx;document.getElementById('customAlert').classList.add('open');}

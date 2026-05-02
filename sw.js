@@ -1,4 +1,4 @@
-const CACHE = 'abbadda-v1';
+const CACHE = 'abbadda-v3';
 const STATIC = ['/', '/index.html', '/icons/icon-192.png', '/icons/icon-512.png'];
 
 self.addEventListener('install', e => {

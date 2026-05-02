@@ -2528,8 +2528,12 @@ function searchNearbyPlaces(categoryCode, lat, lng) {
       const ps = new kakao.maps.services.Places();
       ps.categorySearch(categoryCode, (data, status) => {
         if (status === kakao.maps.services.Status.OK && data.length > 0) {
-          // 전화번호 없는 업체 제외 — 미등록/폐업 가능성 높음
-          const verified = data.filter(p => p.phone && p.phone.trim());
+          // 전화번호 없는 업체 제외 + 아이 동반 부적합 식당 제외
+          const verified = data.filter(p => {
+            if (!p.phone || !p.phone.trim()) return false;
+            if (categoryCode === 'FD6' && !isKidFriendlyFood(p.place_name, p.category_name)) return false;
+            return true;
+          });
           resolve(verified.length > 0 ? verified : null);
         } else resolve(null);
       }, { location: new kakao.maps.LatLng(lat, lng), radius: 800, size: 15, sort: kakao.maps.services.SortBy.DISTANCE });
@@ -2826,7 +2830,25 @@ let _dynExpanding = false;
 let _tourPage = 1;
 let _tourExhausted = false;
 
+// 아이와 함께 가기 부적합한 목적지 키워드 (장소명에 포함 시 코스 제외)
+const DEST_EXCLUDE_KW = ['도서관','학습관','복지관','노인정','주민센터','주민자치','청소년수련관','실버','사회복지','교육원','연수원','훈련원','직업학교'];
+// 아이와 함께 가기 부적합한 식사 장소 키워드
+const FOOD_EXCLUDE_KW = ['양지탕','해장','포장마차','호프','주점','이자카야','바(bar)','술집','스낵바','맥주집','나이트','요정','유흥','성인'];
+// 카카오 category_name 기준 성인용 식당 카테고리
+const FOOD_EXCLUDE_CAT = ['주류','호프','맥주,호프','와인바','바,라운지','양주','소주','막걸리'];
+
+function isKidFriendlyPlace(name) {
+  return !DEST_EXCLUDE_KW.some(kw => name.includes(kw));
+}
+function isKidFriendlyFood(placeName, categoryName) {
+  if (FOOD_EXCLUDE_KW.some(kw => placeName.includes(kw))) return false;
+  if (FOOD_EXCLUDE_CAT.some(kw => (categoryName||'').includes(kw))) return false;
+  return true;
+}
+
 function _buildTourCourse(item, bgColors) {
+  // 아이와 함께 가기 부적합한 목적지 제외
+  if (!isKidFriendlyPlace(item.title)) return false;
   // 중복 체크: TourAPI contentid 기반
   if (COURSES_DB.some(c => c.tourContentId === item.contentid)) return false;
   const km = haversineKm(userLat, userLng, item.lat, item.lng);
@@ -2879,6 +2901,8 @@ async function loadTourPlaces(page = 1) {
 function _buildDynamicCourse(cat, place, bgColors) {
   const isDup = COURSES_DB.some(c => c.isDynamic && c.timeline && c.timeline[0] && c.timeline[0].kakaoUrl === place.place_url);
   if (isDup) return false;
+  // 아이와 함께 가기 부적합한 목적지 제외
+  if (!isKidFriendlyPlace(place.place_name)) return false;
   const pLat = parseFloat(place.y), pLng = parseFloat(place.x);
   const km = haversineKm(userLat, userLng, pLat, pLng);
   const driveMin = kmToDriveMin(km);

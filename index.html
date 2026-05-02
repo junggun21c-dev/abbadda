@@ -556,8 +556,8 @@ function updateStars(hdr) {
   const isClear = wIdx === 0 || wIdx === -1; // 맑음 or 날씨 미확인
   const isNightTime = h >= 20 || h < 6;      // 저녁~새벽
 
-  // 기존 별/빗방울 제거
-  hdr.querySelectorAll('.star-dot,.rain-drop').forEach(s => s.remove());
+  // 기존 별 제거 (빗방울은 setWeatherState에서만 관리)
+  hdr.querySelectorAll('.star-dot').forEach(s => s.remove());
 
   if (!isClear || !isNightTime) return;
 

@@ -1904,7 +1904,7 @@ function renderCourseDetail(){
     <div class="tl-item">
       <div class="tl-left">
         <div class="tl-num">${i+1}</div>
-        <div class="tl-vseg">${i<c.timeline.length-1?(tr[i]?'<span class="tl-transit-lbl">'+fmtMin(tr[i].min)+(tr[i].km?'<br><span style="font-size:9px;opacity:.7">'+tr[i].km+'km</span>':'')+'</span>':''):'<span class="tl-transit-lbl">'+fmtDrive(c.drive)+'</span>'}</div>
+        <div class="tl-vseg">${i<c.timeline.length-1?(tr[i]?'<span class="tl-transit-lbl">'+fmtMin(tr[i].min)+'</span>':''):'<span class="tl-transit-lbl">'+fmtDrive(c.drive)+'</span>'}</div>
       </div>
       <div class="tl-right">
         <div class="tl-header">
@@ -2087,13 +2087,7 @@ async function changeStep(stepIdx){
 
   renderCourseDetail();
   renderCourseMap(c);
-  // 디버그: 실제 계산된 transit 값 확인 (확인 후 제거 예정)
-  const _t0 = c.transit[stepIdx-1], _t1 = c.transit[stepIdx];
-  const _dbg = [
-    stepIdx>0 ? `앞: ${_t0?.km}km/${_t0?.min}분` : '',
-    stepIdx<c.timeline.length-1 ? `뒤: ${_t1?.km}km/${_t1?.min}분` : ''
-  ].filter(Boolean).join(' | ');
-  showToast(`${s.place} [${_dbg}]`);
+  showToast('새로운 코스를 추천합니다 ✨');
 }
 
 function askDeleteStep(stepIdx){pendingDeleteStepIdx=stepIdx;document.getElementById('customAlert').classList.add('open');}

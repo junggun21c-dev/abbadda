@@ -1245,80 +1245,109 @@ async function loadPopupsFromKakaoFallback() {
   ps.keywordSearch('팝업', onResult, opts);
 }
 
+const EVENTS_CACHE_TTL = 6 * 60 * 60 * 1000; // 6시간
+
+function getEventsCache(codesKey) {
+  try {
+    const c = JSON.parse(localStorage.getItem('eventsCache') || 'null');
+    if (!c || c.codes !== codesKey) return null;
+    if (Date.now() - c.ts > EVENTS_CACHE_TTL) return null;
+    return c.items;
+  } catch { return null; }
+}
+
+function setEventsCache(codesKey, items) {
+  try {
+    localStorage.setItem('eventsCache', JSON.stringify({ codes: codesKey, ts: Date.now(), items }));
+  } catch {}
+}
+
+function buildEventsDB(rawItems) {
+  const today = new Date();
+  const todayStr = today.toISOString().slice(0,10).replace(/-/g,'');
+  const seen = new Set();
+  return rawItems.filter(item => {
+    if(seen.has(item.contentid)) return false;
+    seen.add(item.contentid); return true;
+  }).map((item, i) => {
+    const startDate = String(item.eventstartdate||'');
+    const endDate = String(item.eventenddate||'');
+    if(endDate.length===8 && endDate < todayStr) return null;
+    const startFmt = startDate.length===8 ? `${startDate.slice(4,6)}/${startDate.slice(6,8)}` : '';
+    const endFmt = endDate.length===8 ? `${endDate.slice(4,6)}/${endDate.slice(6,8)}` : '';
+    const dateStr = startFmt && endFmt ? `${startFmt} - ${endFmt}` : startFmt;
+    let dDay = 999;
+    if(startDate.length===8) {
+      const start = new Date(startDate.slice(0,4), parseInt(startDate.slice(4,6))-1, parseInt(startDate.slice(6,8)));
+      dDay = Math.ceil((start - today) / (1000*60*60*24));
+      if(dDay < 0) dDay = 0;
+    }
+    const addr = String(item.addr1 || item.addr2 || '');
+    const evtLat = item.mapy ? parseFloat(item.mapy) : null;
+    const evtLng = item.mapx ? parseFloat(item.mapx) : null;
+    let finalDistMin = null;
+    if(userLat && userLng && evtLat && evtLng) {
+      finalDistMin = kmToDriveMin(haversineKm(userLat, userLng, evtLat, evtLng));
+    }
+    return {
+      id: i+1, emoji: EVENT_EMOJIS[i%EVENT_EMOJIS.length], bg: EVENT_BGS[i%EVENT_BGS.length],
+      name: item.title||'행사', date: dateStr, loc: addr, distMin: finalDistMin, d: dDay,
+      lat: evtLat, lng: evtLng,
+      startDateRaw: startDate.length===8 ? `${startDate.slice(0,4)}-${startDate.slice(4,6)}-${startDate.slice(6,8)}` : null,
+      endDateRaw:   endDate.length===8   ? `${endDate.slice(0,4)}-${endDate.slice(4,6)}-${endDate.slice(6,8)}` : null,
+      verified: true, contentId: item.contentid,
+      url: item.url || '',
+      image: item.firstimage || '',
+      codename: item.codename || '',
+      isDDP: !!item.isDDP
+    };
+  }).filter(Boolean);
+}
+
 async function loadEventsFromTourAPI() {
   if(tourApiLoaded) return;
-  try {
-    const areaCodes = getAreaCodesFromAddr(homeAddr !== '출발지 미설정' ? homeAddr : '');
-    const today = new Date();
-    const todayStr = today.toISOString().slice(0,10).replace(/-/g,'');
+  const areaCodes = getAreaCodesFromAddr(homeAddr !== '출발지 미설정' ? homeAddr : '');
+  const codesKey = areaCodes.join(',');
 
-    console.log('[행사] 호출:', `/api/events?areaCodes=${areaCodes.join(',')}`);
-    const resp = await fetch(`/api/events?areaCodes=${areaCodes.join(',')}`);
+  // 캐시 우선 표시 (API 응답 전에도 이전 데이터 보여줌)
+  const cached = getEventsCache(codesKey);
+  if(cached && cached.length > 0) {
+    EVENTS_DB = buildEventsDB(cached);
+    tourApiLoaded = true;
+    renderEvents();
+    document.getElementById('eventBadge').textContent = getEventsByDist().length;
+  }
+
+  try {
+    console.log('[행사] 호출:', `/api/events?areaCodes=${codesKey}`);
+    const resp = await fetch(`/api/events?areaCodes=${codesKey}`);
     if(!resp.ok) throw new Error('서버 오류 ' + resp.status);
     const data = await resp.json();
     let allItems = data.items || [];
     console.log('[행사] 응답 items 수:', allItems.length);
-    if (data.debug) {
-      console.log('[행사] debug:', JSON.stringify({...data.debug, firstRaw: undefined}));
-      if (data.debug.firstRaw) console.log('[행사] API raw:', data.debug.firstRaw);
-    }
-
-    // contentid 기준 중복 제거
-    const seen = new Set();
-    allItems = allItems.filter(item => {
-      if(seen.has(item.contentid)) return false;
-      seen.add(item.contentid); return true;
-    });
 
     if(allItems.length > 0) {
-      EVENTS_DB = allItems.map((item, i) => {
-        const startDate = String(item.eventstartdate||'');
-        const endDate = String(item.eventenddate||'');
-        const startFmt = startDate.length===8 ? `${startDate.slice(4,6)}/${startDate.slice(6,8)}` : '';
-        const endFmt = endDate.length===8 ? `${endDate.slice(4,6)}/${endDate.slice(6,8)}` : '';
-        const dateStr = startFmt && endFmt ? `${startFmt} - ${endFmt}` : startFmt;
-        let dDay = 999;
-        if(startDate.length===8) {
-          const start = new Date(startDate.slice(0,4), parseInt(startDate.slice(4,6))-1, parseInt(startDate.slice(6,8)));
-          dDay = Math.ceil((start - today) / (1000*60*60*24));
-          if(dDay < 0) dDay = 0;
-        }
-        if(endDate.length===8 && endDate < todayStr) return null;
-        const addr = String(item.addr1 || item.addr2 || '');
-        const evtLat = item.mapy ? parseFloat(item.mapy) : null;
-        const evtLng = item.mapx ? parseFloat(item.mapx) : null;
-        // 좌표 없으면 null → 거리 탭 필터에서 제외(전체 탭에만 노출). 임의 기본값(120) 사용 시 1.5~2.5시간 탭에 잘못 매핑되는 버그 방지
-        let finalDistMin = null;
-        if(userLat && userLng && evtLat && evtLng) {
-          finalDistMin = kmToDriveMin(haversineKm(userLat, userLng, evtLat, evtLng));
-        }
-        return {
-          id: i+1, emoji: EVENT_EMOJIS[i%EVENT_EMOJIS.length], bg: EVENT_BGS[i%EVENT_BGS.length],
-          name: item.title||'행사', date: dateStr, loc: addr, distMin: finalDistMin, d: dDay,
-          lat: evtLat, lng: evtLng,
-          startDateRaw: startDate.length===8 ? `${startDate.slice(0,4)}-${startDate.slice(4,6)}-${startDate.slice(6,8)}` : null,
-          endDateRaw:   endDate.length===8   ? `${endDate.slice(0,4)}-${endDate.slice(4,6)}-${endDate.slice(6,8)}` : null,
-          verified: true, contentId: item.contentid,
-          url: item.url || '',
-          image: item.firstimage || '',
-          codename: item.codename || '',
-          isDDP: !!item.isDDP
-        };
-      }).filter(Boolean);
-    } else {
+      setEventsCache(codesKey, allItems); // 성공 시 캐시 갱신
+      EVENTS_DB = buildEventsDB(allItems);
+    } else if(!cached) {
       EVENTS_DB = [];
     }
+    // allItems.length === 0 이고 캐시가 있으면 캐시 데이터 유지
     tourApiLoaded = true;
     renderEvents();
     document.getElementById('eventBadge').textContent = getEventsByDist().length;
     const regionLabel = (homeAddr && homeAddr !== '출발지 미설정') ? homeAddr.split(' ')[0] : '내 지역';
-    if(EVENTS_DB.length > 0) showToast(`🎉 ${regionLabel} 인근 행사 ${EVENTS_DB.length}개 불러왔어요!`);
+    if(EVENTS_DB.length > 0 && !cached) showToast(`🎉 ${regionLabel} 인근 행사 ${EVENTS_DB.length}개 불러왔어요!`);
   } catch(e) {
     console.error('행사 로드 실패:', e);
-    tourApiLoaded = true;
-    EVENTS_DB = [];
-    renderEvents();
-    showToast('⚠️ 행사 정보를 불러오지 못했어요');
+    if(!cached) {
+      // 캐시도 없으면 빈 상태로
+      tourApiLoaded = true;
+      EVENTS_DB = [];
+      renderEvents();
+      showToast('⚠️ 행사 정보를 불러오지 못했어요');
+    }
+    // 캐시가 있으면 이미 표시됐으므로 추가 처리 불필요
   }
 }
 

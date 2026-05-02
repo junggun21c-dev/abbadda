@@ -2057,6 +2057,24 @@ async function changeStep(stepIdx){
   if(c.stops) c.stops[stepIdx] = newPlace.place_name;
   PLACE_COORDS[newPlace.place_name] = { lat:s.lat, lng:s.lng };
 
+  // 장소 좌표가 바뀌었으므로 인접 구간 이동 시간 재계산
+  if(!c.transit) c.transit = [];
+  const prevS = stepIdx > 0 ? c.timeline[stepIdx-1] : null;
+  const nextS = stepIdx < c.timeline.length-1 ? c.timeline[stepIdx+1] : null;
+  // 좌표 없는 인접 스텝은 코스 목적지 좌표로 근사
+  const fromLat = prevS?.lat ?? c.destLat;
+  const fromLng = prevS?.lng ?? c.destLng;
+  const toLat   = nextS?.lat ?? c.destLat;
+  const toLng   = nextS?.lng ?? c.destLng;
+  if(stepIdx > 0){
+    const km = haversineKm(fromLat, fromLng, s.lat, s.lng);
+    c.transit[stepIdx-1] = { km: Math.round(km*10)/10, min: kmToDriveMin(km) };
+  }
+  if(stepIdx < c.timeline.length-1){
+    const km = haversineKm(s.lat, s.lng, toLat, toLng);
+    c.transit[stepIdx] = { km: Math.round(km*10)/10, min: kmToDriveMin(km) };
+  }
+
   // 수정 내역 저장 (링크 공유 시 복원용)
   if(!_courseMods[c.id]) _courseMods[c.id] = {};
   _courseMods[c.id][stepIdx] = { name:s.place, lat:s.lat, lng:s.lng, desc:s.desc, url:s.kakaoUrl };

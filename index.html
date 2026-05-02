@@ -3245,6 +3245,22 @@ function applyUrlMods(c, mStr){
       if(c.stops) c.stops[parseInt(si)] = mod.name;
       PLACE_COORDS[mod.name] = { lat:mod.lat, lng:mod.lng };
     });
+    // 좌표가 복원된 스텝 기준으로 transit 재계산
+    const smFn = km => Math.max(1, Math.round(km * 5));
+    if(!c.transit) c.transit = [];
+    c.timeline.forEach((s, i) => {
+      if(!s.lat || !s.lng) return;
+      const next = i < c.timeline.length-1 ? c.timeline[i+1] : null;
+      const prev = i > 0 ? c.timeline[i-1] : null;
+      if(next && next.lat && next.lng){
+        const km = haversineKm(s.lat, s.lng, next.lat, next.lng);
+        c.transit[i] = { km: Math.round(km*10)/10, min: smFn(km) };
+      }
+      if(prev && prev.lat && prev.lng){
+        const km = haversineKm(prev.lat, prev.lng, s.lat, s.lng);
+        c.transit[i-1] = { km: Math.round(km*10)/10, min: smFn(km) };
+      }
+    });
     // 동적 코스는 enrichDynamicCourse가 덮어쓰지 않도록 차단
     if(c.isDynamic) c.needsEnrichment = false;
   }catch(e){}

@@ -111,9 +111,11 @@ export default async function handler(req, res) {
         const items = data?.response?.body?.items;
         if (!items) continue;
         const arr = Array.isArray(items) ? items : [items];
+        // 지역 필터: 주소(rdnmadr/lnmadr) 또는 기관명(insttNm)에 시도명 포함 여부 검사
+        const sidoShorts = sidos.map(s => s.slice(0, 2)); // '서울특별시' → '서울', '경기도' → '경기' 등
         for (const item of arr) {
-          const insttNm = item.insttNm || '';
-          if (!sidos.some(sido => insttNm.startsWith(sido))) continue;
+          const addrStr = [item.rdnmadr || '', item.lnmadr || '', item.insttNm || ''].join(' ');
+          if (!sidoShorts.some(s => addrStr.includes(s))) continue;
           const endDate = String(item.fstvlEndDate || '').replace(/-/g, '');
           if (endDate.length === 8 && endDate < todayCompact) continue;
           const startDate = String(item.fstvlStartDate || '').replace(/-/g, '');

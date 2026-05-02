@@ -4,13 +4,19 @@
 const POPPLY_BASE = 'https://popply.co.kr/popup';
 const CONCURRENCY = 30;
 const REQUEST_TIMEOUT_MS = 4000;
-const MAX_RESULTS = 40;
+const MAX_RESULTS = 50;
 const SCAN_BUDGET_MS = 28000; // 28초 내 완료
 
-// 오늘 기준으로 스캔할 ID 범위 추정
-// 경험치: ~100 ID/월, 2026-04 기준 최대 ID ≈ 4800
-const SCAN_MAX = 4900;
-const SCAN_MIN = 4100; // 6개월 전까지
+// 동적 ID 범위: 경험치 기준 ~100 ID/월, 2026-04 기준 최대 ID ≈ 4800
+const BASE_ID = 4800;
+const BASE_MONTH = new Date('2026-04-01');
+function calcScanRange() {
+  const now = new Date();
+  const monthsDiff = (now.getFullYear() - BASE_MONTH.getFullYear()) * 12 + (now.getMonth() - BASE_MONTH.getMonth());
+  const SCAN_MAX = BASE_ID + Math.max(0, monthsDiff) * 120 + 250; // 250 여유
+  const SCAN_MIN = Math.max(1, SCAN_MAX - 900); // 최근 900개 ID 스캔 (약 9개월치)
+  return { SCAN_MAX, SCAN_MIN };
+}
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -24,6 +30,7 @@ export default async function handler(req, res) {
   const futureLimit = new Date(today.getTime() + 30 * 86400000).toISOString().slice(0, 10);
 
   // 최신 ID부터 역순으로
+  const { SCAN_MAX, SCAN_MIN } = calcScanRange();
   const ids = [];
   for (let i = SCAN_MAX; i >= SCAN_MIN; i--) ids.push(i);
 
@@ -82,8 +89,9 @@ async function fetchPopupPage(id, todayStr, futureLimit) {
     const dateMatches = [...combined.matchAll(/(\d{4}-\d{2}-\d{2})T\d{2}:\d{2}:\d{2}/g)].map(m => m[1]);
     if (dateMatches.length < 2) return null;
 
-    const startDate = dateMatches[0];
-    const endDate = dateMatches[1];
+    // 첫 두 날짜 중 작은 것이 startDate
+    const startDate = dateMatches[0] <= dateMatches[1] ? dateMatches[0] : dateMatches[1];
+    const endDate   = dateMatches[0] <= dateMatches[1] ? dateMatches[1] : dateMatches[0];
 
     // 날짜 필터: 이미 종료됐거나 너무 미래인 팝업 제외
     if (endDate < todayStr) return null;
@@ -115,9 +123,9 @@ async function fetchPopupPage(id, todayStr, futureLimit) {
     }
     address = address.slice(0, 60);
 
-    // 좌표 (Naver Maps용으로 HTML에 직접 포함됨)
-    const latMatch = html.match(/(?:37|36|35|34|38|33)\.[0-9]{5,}/);
-    const lngMatch = html.match(/(?:126|127|128|129)\.[0-9]{5,}/);
+    // 좌표: RSC chunk 우선, 없으면 전체 HTML에서 탐색
+    const latMatch = combined.match(/(?:37|36|35|34|38|33)\.[0-9]{4,}/) || html.match(/(?:37|36|35|34|38|33)\.[0-9]{4,}/);
+    const lngMatch = combined.match(/(?:126|127|128|129)\.[0-9]{4,}/) || html.match(/(?:126|127|128|129)\.[0-9]{4,}/);
     const lat = latMatch ? parseFloat(latMatch[0]) : null;
     const lng = lngMatch ? parseFloat(lngMatch[0]) : null;
 

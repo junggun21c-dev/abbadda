@@ -1365,7 +1365,13 @@ const ages=['5살','7살','9살','11살','13살'];
 const members=['2인(부부)','3인 가족','4인 가족','5인 이상'];
 let wIdx=0,aIdx=3,mIdx=1,catVal='전체',distMin=0,distMax=9999;
 let currentTemp=null;
-let favs=new Set(JSON.parse(localStorage.getItem('favs')||'[]'));
+// favs는 코스 id(숫자)를 저장. 구버전(배열 인덱스) 마이그레이션 포함
+let favs=(()=>{
+  const raw=JSON.parse(localStorage.getItem('favs')||'[]');
+  // 구버전: 0~50 범위의 작은 숫자 → 코스 id로 변환(index+1)
+  const migrated=raw.map(v=>{ if(v>=0&&v<=50){ const c=COURSES_DB[v]; return c?c.id:null; } return v; }).filter(Boolean);
+  return new Set(migrated);
+})();
 function saveFavs(){localStorage.setItem('favs',JSON.stringify([...favs]));}
 let currentCourseIdx=-1,pendingDeleteStepIdx=-1;
 let homeAddr = localStorage.getItem('homeAddr') || '출발지 미설정';
@@ -1774,7 +1780,7 @@ function courseCardHTML(c,i,animate){
       <div style="font-size:50px">${c.emoji}</div>
       <div class="time-badge">🚗 ${c.drive}</div>
       ${c.cost?`<div class="cost-badge">💰 ${c.cost}</div>`:''}
-      <button class="fav-btn" onclick="event.stopPropagation();toggleFav(${realIdx},this)">${favs.has(realIdx)?'❤️':'🤍'}</button>
+      <button class="fav-btn" onclick="event.stopPropagation();toggleFav(${c.id},this)">${favs.has(c.id)?'❤️':'🤍'}</button>
       ${wcChips?`<div class="weather-compat">${wcChips}</div>`:''}
     </div>
     <div class="course-body">
@@ -1838,7 +1844,7 @@ async function loadMoreCourses(){
   },50);
 }
 
-function toggleFav(idx,el){favs.has(idx)?(favs.delete(idx),el.textContent='🤍'):(favs.add(idx),el.textContent='❤️');saveFavs();}
+function toggleFav(courseId,el){favs.has(courseId)?(favs.delete(courseId),el.textContent='🤍'):(favs.add(courseId),el.textContent='❤️');saveFavs();}
 
 async function openCourse(idx){
   currentCourseIdx=idx;
@@ -1931,7 +1937,7 @@ ${i===c.timeline.length-1?'':''}`;
       <div class="home-info"><div class="home-label end">도착지 (귀가)</div><div class="home-addr">${homeAddr}</div></div>
     </div>
   </div>
-  <div class="route-btn-row"><button class="save-route-btn${favs.has(currentCourseIdx)?' saved':''}" id="saveRouteBtn" onclick="toggleSaveRoute(${currentCourseIdx})">${favs.has(currentCourseIdx)?'❤️ 찜됨':'🤍 찜하기'}</button><button class="url-copy-btn" onclick="copyRouteUrl(${c.id})" id="copyUrlBtn">🔗 링크 복사</button></div>`;
+  <div class="route-btn-row"><button class="save-route-btn${favs.has(c.id)?' saved':''}" id="saveRouteBtn" onclick="toggleSaveRoute(${currentCourseIdx})">${favs.has(c.id)?'❤️ 찜됨':'🤍 찜하기'}</button><button class="url-copy-btn" onclick="copyRouteUrl(${c.id})" id="copyUrlBtn">🔗 링크 복사</button></div>`;
 
   document.getElementById('modalContent').innerHTML=html;
   renderCourseMap(c);
@@ -2534,7 +2540,7 @@ function switchTab(tab){
 
 function renderFavPage(){
   const page=document.getElementById('favPage');
-  const saved=[...favs].map(i=>({idx:i,course:COURSES_DB[i]})).filter(x=>x.course);
+  const saved=[...favs].map(id=>({id,course:COURSES_DB.find(c=>c.id===id)})).filter(x=>x.course);
   if(!saved.length){
     page.innerHTML=`
       <div class="fav-empty">
@@ -2543,7 +2549,8 @@ function renderFavPage(){
       </div>`;
     return;
   }
-  const cards=saved.map(({idx,course:c})=>{
+  const cards=saved.map(({id,course:c},i)=>{
+    const realIdx=COURSES_DB.indexOf(c);
     const wcChips=(c.weather||[]).map(w=>{
       const m={'맑음':'☀️','흐림':'⛅','우천':'🌧️','실내':'🏠'};
       return `<span class="wc-chip">${m[w]||w}</span>`;
@@ -2554,12 +2561,12 @@ function renderFavPage(){
       return `<span class="sf-chip">${ico} ${s}</span>`;
     });
     const flowHtml=flowChips.map((chip,j)=>j<flowChips.length-1?chip+`<span class="sf-arrow">→</span>`:chip).join('')+(c.stops.length>3?`<span class="sf-more">+${c.stops.length-3}</span>`:'');
-    return `<div class="course-card fade-in" style="animation-delay:${saved.indexOf({idx,course:c})*0.06}s" onclick="openCourse(${idx})">
+    return `<div class="course-card fade-in" style="animation-delay:${i*0.06}s" onclick="openCourse(${realIdx})">
       <div class="course-thumb" style="background:${c.bg}">
         <div style="font-size:50px">${c.emoji}</div>
         <div class="time-badge">🚗 ${c.drive}</div>
         ${c.cost?`<div class="cost-badge">💰 ${c.cost}</div>`:''}
-        <button class="fav-btn" onclick="event.stopPropagation();removeFav(${idx},this)">❤️</button>
+        <button class="fav-btn" onclick="event.stopPropagation();removeFav(${id},this)">❤️</button>
         ${wcChips?`<div class="weather-compat">${wcChips}</div>`:''}
       </div>
       <div class="course-body">
@@ -2569,8 +2576,8 @@ function renderFavPage(){
         <div class="tag-row">${c.tags.slice(0,3).map((t,j)=>`<span class="tag ${['orange','blue','green','purple'][j%4]}">${t}</span>`).join('')}</div>
         <div class="stops-flow">${flowHtml}</div>
         <div class="fav-card-actions">
-          <button class="go-btn" onclick="event.stopPropagation();openCourse(${idx})">코스 자세히 보기 →</button>
-          <button class="fav-del-btn" onclick="event.stopPropagation();removeFav(${idx},this)">🗑️ 삭제</button>
+          <button class="go-btn" onclick="event.stopPropagation();openCourse(${realIdx})">코스 자세히 보기 →</button>
+          <button class="fav-del-btn" onclick="event.stopPropagation();removeFav(${id},this)">🗑️  삭제</button>
         </div>
       </div>
     </div>`;
@@ -2583,8 +2590,8 @@ function renderFavPage(){
     ${cards}`;
 }
 
-function removeFav(idx,el){
-  favs.delete(idx);
+function removeFav(courseId,el){
+  favs.delete(courseId);
   saveFavs();
   renderFavPage();
   renderCourses(false);
@@ -3109,13 +3116,16 @@ function naverLogout() {
 
 /* ─── 경로 저장 ─── */
 function toggleSaveRoute(idx){
+  const c=COURSES_DB[idx];
+  if(!c) return;
+  const courseId=c.id;
   const btn=document.getElementById('saveRouteBtn');
-  if(favs.has(idx)){
-    favs.delete(idx);
+  if(favs.has(courseId)){
+    favs.delete(courseId);
     if(btn){btn.textContent='🤍 찜하기';btn.classList.remove('saved');}
     showToast('저장이 취소됐어요');
   } else {
-    favs.add(idx);
+    favs.add(courseId);
     if(btn){btn.textContent='❤️ 찜됨';btn.classList.add('saved');}
     showToast('코스가 저장됐어요! ❤️');
   }

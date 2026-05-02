@@ -1140,8 +1140,8 @@ function getAreaCodesFromAddr(addr) {
 
 /* 팝업 주소가 사용자 출발지 지역과 일치하는지 확인 */
 function popupMatchesHomeRegion(address) {
-  if (!address) return true;
   if (!homeAddr || homeAddr === '출발지 미설정') return true;
+  if (!address) return false; // 출발지 설정됐는데 팝업 주소 불명 → 제외
   const areaCodes = getAreaCodesFromAddr(homeAddr);
   const codeToKw = {
     '1':'서울','2':'인천','3':'대전','4':'대구','5':'광주','6':'부산',

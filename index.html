@@ -3186,16 +3186,35 @@ async function loadFromServer() {
     if (!resp.ok) return;
     const data = await resp.json();
 
-    // 찜: 서버 + 로컬 합집합
+    // 찜: 서버 + 로컬 합집합 (서버 데이터가 있으면 무조건 추가 — 로컬이 비어도 복원)
     if (Array.isArray(data.favs) && data.favs.length > 0) {
       let changed = false;
       data.favs.forEach(id => { if (!favs.has(id)) { favs.add(id); changed = true; } });
-      if (changed) { saveFavs(false); renderCourses(false); if(currentTab==='fav') renderFavPage(); }
+      if (changed) {
+        saveFavs(false); // localStorage 반영 (서버 재전송 없이)
+        renderCourses(false);
+        if (currentTab === 'fav') renderFavPage();
+        showToast(`❤️ 저장된 코스 ${favs.size}개를 복원했어요!`);
+      }
+    }
+    // 로컬에도 없고 서버에도 없으면 → 현재 로컬 상태 서버에 업로드 (첫 로그인 시 백업)
+    if (favs.size > 0 && (!data.favs || data.favs.length === 0)) {
+      scheduleSync();
     }
 
     // 출발지: 서버 데이터를 로컬에 없을 때만 적용 (로컬 우선)
     if (data.home && data.home.addr && homeAddr === '출발지 미설정') {
-      commitAddr(data.home.addr, data.home.lat || null, data.home.lng || null, null);
+      homeAddr = data.home.addr;
+      localStorage.setItem('homeAddr', data.home.addr);
+      homeAddrManual = !!data.home.manual;
+      localStorage.setItem('homeAddrManual', homeAddrManual ? '1' : '0');
+      if (data.home.lat && data.home.lng) {
+        userLat = data.home.lat; userLng = data.home.lng;
+        localStorage.setItem('homeLatLng', JSON.stringify({ lat: userLat, lng: userLng }));
+        recalcDistances();
+      }
+      document.getElementById('homeLabel').textContent =
+        data.home.addr.length > 8 ? data.home.addr.slice(0, 8) + '…' : data.home.addr;
     }
   } catch(e) { console.log('loadFromServer fail', e); }
 }

@@ -2058,6 +2058,8 @@ async function changeStep(stepIdx){
   PLACE_COORDS[newPlace.place_name] = { lat:s.lat, lng:s.lng };
 
   // 장소 좌표가 바뀌었으므로 인접 구간 이동 시간 재계산
+  // 코스 내 이동은 가까운 거리이므로 최소값을 낮게(2분) 설정해 장소마다 다른 시간이 보이도록
+  const stepMin = km => Math.max(2, Math.round(km * 1.38 / 20 * 60));
   if(!c.transit) c.transit = [];
   const prevS = stepIdx > 0 ? c.timeline[stepIdx-1] : null;
   const nextS = stepIdx < c.timeline.length-1 ? c.timeline[stepIdx+1] : null;
@@ -2068,11 +2070,11 @@ async function changeStep(stepIdx){
   const toLng   = nextS?.lng ?? c.destLng;
   if(stepIdx > 0){
     const km = haversineKm(fromLat, fromLng, s.lat, s.lng);
-    c.transit[stepIdx-1] = { km: Math.round(km*10)/10, min: kmToDriveMin(km) };
+    c.transit[stepIdx-1] = { km: Math.round(km*10)/10, min: stepMin(km) };
   }
   if(stepIdx < c.timeline.length-1){
     const km = haversineKm(s.lat, s.lng, toLat, toLng);
-    c.transit[stepIdx] = { km: Math.round(km*10)/10, min: kmToDriveMin(km) };
+    c.transit[stepIdx] = { km: Math.round(km*10)/10, min: stepMin(km) };
   }
 
   // 수정 내역 저장 (링크 공유 시 복원용)

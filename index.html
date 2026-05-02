@@ -2057,47 +2057,27 @@ async function changeStep(stepIdx){
   if(c.stops) c.stops[stepIdx] = newPlace.place_name;
   PLACE_COORDS[newPlace.place_name] = { lat:s.lat, lng:s.lng };
 
-  // 장소 좌표가 바뀌었으므로 인접 구간 이동 시간 재계산
-  // 5분/km 기준 (서울 시내 차량 이동), 최소 3분
+  // 장소 좌표가 바뀌었으므로 인접 구간 이동 시간 재계산 (5분/km, 최소 1분)
   const stepMin = km => Math.max(1, Math.round(km * 5));
   if(!c.transit) c.transit = [];
   const prevS = stepIdx > 0 ? c.timeline[stepIdx-1] : null;
   const nextS = stepIdx < c.timeline.length-1 ? c.timeline[stepIdx+1] : null;
-
-  // 좌표 없는 인접 스텝: PLACE_COORDS 캐시 → 카카오 키워드 검색 → 목적지 좌표 순으로 조회
-  async function resolveCoords(step, fallLat, fallLng) {
-    if (!step) return { lat: fallLat, lng: fallLng };
+  // 좌표 없는 인접 스텝은 PLACE_COORDS 캐시 또는 목적지 좌표로 대체
+  function getCoords(step) {
+    if (!step) return null;
     if (step.lat && step.lng) return { lat: step.lat, lng: step.lng };
-    if (PLACE_COORDS[step.place]) {
-      const p = PLACE_COORDS[step.place];
-      step.lat = p.lat; step.lng = p.lng;
-      return p;
-    }
-    try {
-      const found = await new Promise(res => {
-        const ps = new kakao.maps.services.Places();
-        ps.keywordSearch(step.place, (data, status) => {
-          res(status === kakao.maps.services.Status.OK && data[0] ? data[0] : null);
-        }, { location: new kakao.maps.LatLng(fallLat, fallLng), radius: 10000, size: 1 });
-      });
-      if (found) {
-        const p = { lat: parseFloat(found.y), lng: parseFloat(found.x) };
-        step.lat = p.lat; step.lng = p.lng;
-        PLACE_COORDS[step.place] = p;
-        return p;
-      }
-    } catch(e) {}
-    return { lat: fallLat, lng: fallLng };
+    const cached = step.place && PLACE_COORDS[step.place];
+    if (cached) { step.lat = cached.lat; step.lng = cached.lng; return cached; }
+    return null;
   }
-
-  const from = await resolveCoords(prevS, c.destLat, c.destLng);
-  const to   = await resolveCoords(nextS, c.destLat, c.destLng);
+  const fromCoords = getCoords(prevS) || { lat: c.destLat, lng: c.destLng };
+  const toCoords   = getCoords(nextS) || { lat: c.destLat, lng: c.destLng };
   if(stepIdx > 0){
-    const km = haversineKm(from.lat, from.lng, s.lat, s.lng);
+    const km = haversineKm(fromCoords.lat, fromCoords.lng, s.lat, s.lng);
     c.transit[stepIdx-1] = { km: Math.round(km*10)/10, min: stepMin(km) };
   }
   if(stepIdx < c.timeline.length-1){
-    const km = haversineKm(s.lat, s.lng, to.lat, to.lng);
+    const km = haversineKm(s.lat, s.lng, toCoords.lat, toCoords.lng);
     c.transit[stepIdx] = { km: Math.round(km*10)/10, min: stepMin(km) };
   }
 

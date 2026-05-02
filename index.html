@@ -2058,9 +2058,8 @@ async function changeStep(stepIdx){
   PLACE_COORDS[newPlace.place_name] = { lat:s.lat, lng:s.lng };
 
   // 장소 좌표가 바뀌었으므로 인접 구간 이동 시간 재계산
-  // 반경 800m 검색 결과는 모두 짧은 거리 → km*10 스케일로 거리차를 뚜렷하게 표시
-  // 0.2km→2분, 0.4km→4분, 0.6km→6분, 0.8km→8분
-  const stepMin = km => Math.max(2, Math.ceil(km * 10));
+  // 5분/km 기준 (서울 시내 차량 이동), 최소 3분
+  const stepMin = km => Math.max(3, Math.round(km * 5));
   if(!c.transit) c.transit = [];
   const prevS = stepIdx > 0 ? c.timeline[stepIdx-1] : null;
   const nextS = stepIdx < c.timeline.length-1 ? c.timeline[stepIdx+1] : null;
@@ -3072,6 +3071,19 @@ async function enrichDynamicCourse(c) {
     c.timeline[2] = { type:'cafe', place:cf.place_name, lat:cLat, lng:cLng,
       desc:`📍 ${cf.address_name}${cf.phone?' · ☎ '+cf.phone:''}`, kakaoUrl:cf.place_url, parking:true };
     c.stops[2] = cf.place_name;
+  }
+  // 실제 좌표로 transit 초기화 (hardcoded 값 대체)
+  const enrichMin = km => Math.max(3, Math.round(km * 5));
+  const food = c.timeline[1];
+  const cafe = c.timeline[2];
+  if (!c.transit) c.transit = [];
+  if (food?.lat && food?.lng) {
+    const km0 = haversineKm(main.lat, main.lng, food.lat, food.lng);
+    c.transit[0] = { km: Math.round(km0*10)/10, min: enrichMin(km0) };
+  }
+  if (food?.lat && food?.lng && cafe?.lat && cafe?.lng) {
+    const km1 = haversineKm(food.lat, food.lng, cafe.lat, cafe.lng);
+    c.transit[1] = { km: Math.round(km1*10)/10, min: enrichMin(km1) };
   }
   if (r || cf) showToast(`${r?r.place_name:'맛집'} 등 근처 정보를 찾았어요! 🎉`);
 }

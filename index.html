@@ -2058,8 +2058,9 @@ async function changeStep(stepIdx){
   PLACE_COORDS[newPlace.place_name] = { lat:s.lat, lng:s.lng };
 
   // 장소 좌표가 바뀌었으므로 인접 구간 이동 시간 재계산
-  // 코스 내 이동은 가까운 거리이므로 최소값을 낮게(2분) 설정해 장소마다 다른 시간이 보이도록
-  const stepMin = km => Math.max(2, Math.round(km * 1.38 / 20 * 60));
+  // 반경 800m 검색 결과는 모두 짧은 거리 → km*10 스케일로 거리차를 뚜렷하게 표시
+  // 0.2km→2분, 0.4km→4분, 0.6km→6분, 0.8km→8분
+  const stepMin = km => Math.max(2, Math.ceil(km * 10));
   if(!c.transit) c.transit = [];
   const prevS = stepIdx > 0 ? c.timeline[stepIdx-1] : null;
   const nextS = stepIdx < c.timeline.length-1 ? c.timeline[stepIdx+1] : null;

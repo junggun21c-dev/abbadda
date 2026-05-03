@@ -1933,7 +1933,7 @@ function courseCardHTML(c,i,animate){
     <div class="course-body">
       <div class="course-region-chip">${c.region}${c.cat?' · '+c.cat:''}</div>
       <div class="course-title">${c.title}</div>
-      <div class="course-meta"><span class="star">★</span>${c.rating||'NEW'}</div>
+      ${c.rating?`<div class="course-meta"><span class="star">★</span>${c.rating}</div>`:''}
       <div class="tag-row">${c.tags.slice(0,3).map((t,j)=>`<span class="tag ${['orange','blue','green','purple'][j%4]}">${t}</span>`).join('')}</div>
       <div class="stops-flow">${flowHtml}</div>
       <button class="go-btn" onclick="event.stopPropagation();openCourse(${realIdx})">코스 자세히 보기 →</button>
@@ -2770,7 +2770,7 @@ function renderFavPage(){
       <div class="course-body">
         <div class="course-region-chip">${c.region}${c.cat?' · '+c.cat:''}</div>
         <div class="course-title">${c.title}</div>
-        <div class="course-meta"><span class="star">★</span>${c.rating||'NEW'}</div>
+        ${c.rating?`<div class="course-meta"><span class="star">★</span>${c.rating}</div>`:''}
         <div class="tag-row">${c.tags.slice(0,3).map((t,j)=>`<span class="tag ${['orange','blue','green','purple'][j%4]}">${t}</span>`).join('')}</div>
         <div class="stops-flow">${flowHtml}</div>
         <div class="fav-card-actions">

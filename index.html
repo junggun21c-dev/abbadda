@@ -1443,6 +1443,51 @@ let _deletedFavs = (() => {
 function _saveDeletedFavs() {
   try { localStorage.setItem('deletedFavs', JSON.stringify([...(_deletedFavs)])); } catch {}
 }
+
+// 동적 코스(_dynId가 매 세션 달라짐)를 위한 안정 식별자 집합
+// 형식: "kakao:<place_url>" 또는 "tour:<contentid>"
+let favStableKeys = (() => {
+  try {
+    const raw = JSON.parse(localStorage.getItem('favStableKeys') || '[]');
+    return new Set(Array.isArray(raw) ? raw.filter(v => typeof v === 'string') : []);
+  } catch { return new Set(); }
+})();
+function _saveFavStableKeys() {
+  try { localStorage.setItem('favStableKeys', JSON.stringify([...favStableKeys])); } catch {}
+}
+function _stableKeyOf(c) {
+  if (!c || !c.isDynamic) return null;
+  if (c.tourContentId) return `tour:${c.tourContentId}`;
+  const ku = c.timeline && c.timeline[0] && c.timeline[0].kakaoUrl;
+  if (ku) return `kakao:${ku}`;
+  return null;
+}
+function _addFavStableKey(c) {
+  const k = _stableKeyOf(c);
+  if (k && !favStableKeys.has(k)) { favStableKeys.add(k); _saveFavStableKeys(); }
+}
+function _removeFavStableKey(c) {
+  const k = _stableKeyOf(c);
+  if (k && favStableKeys.has(k)) { favStableKeys.delete(k); _saveFavStableKeys(); }
+}
+// 동적 코스 로드 후 favStableKeys로 새 ID들을 favs에 매핑 복원
+function reconcileDynamicFavs() {
+  let added = 0;
+  COURSES_DB.forEach(c => {
+    if (!c.isDynamic) return;
+    const k = _stableKeyOf(c);
+    if (!k) return;
+    if (favStableKeys.has(k) && !favs.has(c.id)) {
+      favs.add(c.id);
+      added++;
+    }
+  });
+  if (added > 0) {
+    saveFavs(false);
+    if (typeof renderCourses === 'function') renderCourses(false);
+    if (typeof currentTab !== 'undefined' && currentTab === 'fav' && typeof renderFavPage === 'function') renderFavPage();
+  }
+}
 function saveFavs(sync=true) {
   const arr = [...favs];
   try {
@@ -1947,15 +1992,19 @@ async function loadMoreCourses(){
 }
 
 function toggleFav(courseId,el){
+  const c = COURSES_DB.find(x => x.id === courseId);
   if(favs.has(courseId)){
     favs.delete(courseId); el.textContent='🤍';
     _deletedFavs.add(courseId); _saveDeletedFavs(); // 의도적 삭제 추적
+    if (c) _removeFavStableKey(c); // 동적 코스 안정 식별자도 제거
     saveFavs(false);
     syncToServer({force:true}); // 즉시 서버 반영 (force = 빈 배열도 허용)
   } else {
     favs.add(courseId); el.textContent='❤️';
     _deletedFavs.delete(courseId); _saveDeletedFavs(); // 재추가 시 삭제 기록 제거
-    saveFavs();
+    if (c) _addFavStableKey(c); // 동적 코스면 안정 식별자도 함께 저장
+    saveFavs(false);
+    syncToServer({force:true}); // 찜 추가도 즉시 서버 반영 (debounce 동안 로그아웃 시 유실 방지)
   }
 }
 
@@ -2740,8 +2789,10 @@ function renderFavPage(){
 }
 
 function removeFav(courseId,el){
+  const c = COURSES_DB.find(x => x.id === courseId);
   favs.delete(courseId);
   _deletedFavs.add(courseId); _saveDeletedFavs(); // 의도적 삭제 추적
+  if (c) _removeFavStableKey(c); // 동적 코스 안정 식별자도 제거
   saveFavs(false);
   syncToServer({force:true}); // 즉시 서버 반영
   renderFavPage();
@@ -2754,6 +2805,7 @@ function clearAllFavs(){
   favs.forEach(id => _deletedFavs.add(id));
   _saveDeletedFavs();
   favs.clear();
+  favStableKeys.clear(); _saveFavStableKeys(); // 동적 코스 안정 식별자도 모두 비움
   // 백업도 함께 비움 (의도적 전체 삭제)
   try { localStorage.removeItem('favsBackup'); localStorage.removeItem('favsBackupTs'); } catch {}
   saveFavs(false);
@@ -3131,6 +3183,7 @@ async function loadDynamicCourses() {
   // TourAPI 병렬 로드 (한국관광공사 큐레이션 데이터 보강)
   loadTourPlaces(1).then(added => {
     if (added > 0) renderCourses(false);
+    reconcileDynamicFavs(); // TourAPI 코스 로드 후 찜 복원
   });
 
   const ps = new kakao.maps.services.Places();
@@ -3200,7 +3253,7 @@ async function loadDynamicCourses() {
           });
         }
       }
-      if (--pending === 0) { renderCourses(false); checkUrlCourse(); }
+      if (--pending === 0) { renderCourses(false); checkUrlCourse(); reconcileDynamicFavs(); }
     }, opts);
   }
 }
@@ -3306,9 +3359,18 @@ async function loadFromServer() {
       _saveDeletedFavs();
     }
 
+    // 동적 코스 안정 식별자(favKeys) 병합: 다음 reconcileDynamicFavs에서 ID 매핑
+    let keysAdded = 0;
+    if (Array.isArray(data.favKeys)) {
+      data.favKeys.forEach(k => {
+        if (typeof k === 'string' && !favStableKeys.has(k)) { favStableKeys.add(k); keysAdded++; }
+      });
+      if (keysAdded > 0) _saveFavStableKeys();
+    }
+
     // 찜: 서버 + 로컬 합집합. 단, 사용자가 의도적으로 삭제한 ID(_deletedFavs)는 서버에서 부활시키지 않음
+    let added = 0;
     if (Array.isArray(data.favs) && data.favs.length > 0) {
-      let added = 0;
       data.favs.forEach(id => {
         if (typeof id !== 'number') return;
         if (_deletedFavs.has(id)) return; // 사용자가 삭제한 항목은 부활 방지
@@ -3318,8 +3380,12 @@ async function loadFromServer() {
         saveFavs(false);
         renderCourses(false);
         if (currentTab === 'fav') renderFavPage();
-        showToast(`❤️ 저장된 코스 ${favs.size}개를 복원했어요!`);
       }
+    }
+    // 동적 코스 매핑 즉시 시도 (이미 로드됐다면 매칭, 아니면 loadDynamicCourses 완료 후 자동 매칭)
+    if (keysAdded > 0) reconcileDynamicFavs();
+    if (added > 0 || keysAdded > 0) {
+      showToast(`❤️ 저장된 코스 ${favs.size}개를 복원했어요!`);
     }
 
     // 출발지: 서버 데이터를 로컬에 없을 때만 적용 (로컬 우선)
@@ -3343,7 +3409,7 @@ async function loadFromServer() {
     // 로그인 직후 무조건 로컬 → 서버 백업 강제 실행
     // 이유: 로컬 데이터가 서버보다 많거나, 서버에 누락된 항목이 있을 수 있음
     // (병합 후 favs는 항상 로컬+서버 합집합이므로 안전)
-    if (favs.size > 0 || homeAddr !== '출발지 미설정') {
+    if (favs.size > 0 || favStableKeys.size > 0 || homeAddr !== '출발지 미설정') {
       console.log('[sync] 로그인 직후 강제 백업 → 서버');
       // 즉시 sync (debounce 없이)
       syncToServer();
@@ -3351,7 +3417,7 @@ async function loadFromServer() {
   } catch(e) {
     console.error('[sync] loadFromServer 예외:', e);
     // 네트워크 오류 시에도 로컬 데이터 보호: 나중에 다시 sync 시도
-    if (favs.size > 0 || homeAddr !== '출발지 미설정') scheduleSync();
+    if (favs.size > 0 || favStableKeys.size > 0 || homeAddr !== '출발지 미설정') scheduleSync();
   }
 }
 
@@ -3365,21 +3431,22 @@ function scheduleSync() {
 async function syncToServer(opts={}) {
   if (!sessionToken) return;
   const favsArr = [...favs];
+  const favKeysArr = [...favStableKeys];
   const home = homeAddr !== '출발지 미설정'
     ? { addr: homeAddr, lat: userLat, lng: userLng, manual: homeAddrManual }
     : null;
   const force = !!opts.force;
   // force가 아닌 경우만: 보낼 데이터 없으면 스킵 (네트워크 절약)
-  if (!force && favsArr.length === 0 && !home) {
+  if (!force && favsArr.length === 0 && favKeysArr.length === 0 && !home) {
     console.log('[sync] syncToServer: 보낼 데이터 없음, 스킵');
     return;
   }
   try {
-    console.log('[sync] syncToServer →', { favs: favsArr.length, home: home?.addr, force });
+    console.log('[sync] syncToServer →', { favs: favsArr.length, favKeys: favKeysArr.length, home: home?.addr, force });
     const resp = await fetch('/api/user/save', {
       method: 'POST',
       headers: { Authorization: `Bearer ${sessionToken}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ favs: favsArr, home, force, deleted: [..._deletedFavs] })
+      body: JSON.stringify({ favs: favsArr, favKeys: favKeysArr, home, force, deleted: [..._deletedFavs] })
     });
     if (!resp.ok) {
       console.warn('[sync] save 실패:', resp.status);
@@ -3419,7 +3486,12 @@ function naverLogin() {
   location.href = `https://nid.naver.com/oauth2.0/authorize?${p}`;
 }
 
-function naverLogout() {
+async function naverLogout() {
+  // 진행 중인 debounce sync가 있으면 취소하고, 토큰 제거 전에 즉시 서버 반영 (찜 유실 방지)
+  if (_syncTimer) { clearTimeout(_syncTimer); _syncTimer = null; }
+  if (sessionToken && (favs.size > 0 || favStableKeys.size > 0 || homeAddr !== '출발지 미설정' || _deletedFavs.size > 0)) {
+    try { await syncToServer({force:true}); } catch(e) { console.warn('[logout] flush 실패', e); }
+  }
   naverUser = null;
   sessionToken = null;
   localStorage.removeItem('naverUser');
@@ -3436,14 +3508,19 @@ function toggleSaveRoute(idx){
   const btn=document.getElementById('saveRouteBtn');
   if(favs.has(courseId)){
     favs.delete(courseId);
+    _deletedFavs.add(courseId); _saveDeletedFavs(); // 의도적 삭제 추적
+    _removeFavStableKey(c); // 동적 코스 안정 식별자도 제거
     if(btn){btn.textContent='🤍 찜하기';btn.classList.remove('saved');}
     showToast('저장이 취소됐어요');
   } else {
     favs.add(courseId);
+    _deletedFavs.delete(courseId); _saveDeletedFavs(); // 재추가 시 삭제 기록 제거
+    _addFavStableKey(c); // 동적 코스면 안정 식별자도 함께 저장
     if(btn){btn.textContent='❤️ 찜됨';btn.classList.add('saved');}
     showToast('코스가 저장됐어요! ❤️');
   }
-  saveFavs();
+  saveFavs(false);
+  syncToServer({force:true}); // 즉시 서버 반영 (debounce 동안 로그아웃 시 유실 방지)
   renderCourses(false);
 }
 

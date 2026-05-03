@@ -14,7 +14,7 @@ export default async function handler(req, res) {
   let sess;
   try { sess = JSON.parse(sessRaw); } catch { return res.status(401).json({ error: 'bad_session' }); }
 
-  const { favs, home, force, deleted } = req.body || {};
+  const { favs, favKeys, home, force, deleted } = req.body || {};
   const saves = [];
   const result = { ok: true, saved: {} };
   const isForce = !!force;
@@ -43,6 +43,27 @@ export default async function handler(req, res) {
     }
   }
 
+  // 동적 코스 안정 식별자(favKeys) 처리: favs와 동일한 빈 배열 보호 정책
+  if (Array.isArray(favKeys)) {
+    if (favKeys.length > 0) {
+      saves.push(kvSet(`user:${sess.id}:favKeys`, JSON.stringify(favKeys)));
+      result.saved.favKeys = favKeys.length;
+    } else {
+      if (isForce) {
+        saves.push(kvSet(`user:${sess.id}:favKeys`, JSON.stringify([])));
+        result.saved.favKeys = 0;
+      } else {
+        const existing = await kvGet(`user:${sess.id}:favKeys`);
+        if (!existing) {
+          result.saved.favKeys = 0;
+        } else {
+          console.warn(`[save] 빈 favKeys 거부 (userId: ${sess.id}, force=false)`);
+          result.saved.favKeys = 'rejected_empty';
+        }
+      }
+    }
+  }
+
   // 출발지 처리
   if (home !== undefined) {
     if (home && home.addr) {
@@ -65,10 +86,16 @@ export default async function handler(req, res) {
     }
   }
 
-  // 삭제 기록 저장 (다른 디바이스에서 부활 방지용)
-  if (Array.isArray(deleted) && deleted.length > 0) {
-    saves.push(kvSet(`user:${sess.id}:deleted`, JSON.stringify(deleted)));
-    result.saved.deleted = deleted.length;
+  // 삭제 기록 저장 (다른 디바이스에서 부활 방지용).
+  // 빈 배열은 force=true 시에만 비움 — 다른 디바이스의 기록을 우발적으로 잃지 않도록 보호.
+  if (Array.isArray(deleted)) {
+    if (deleted.length > 0) {
+      saves.push(kvSet(`user:${sess.id}:deleted`, JSON.stringify(deleted)));
+      result.saved.deleted = deleted.length;
+    } else if (isForce) {
+      saves.push(kvSet(`user:${sess.id}:deleted`, JSON.stringify([])));
+      result.saved.deleted = 0;
+    }
   }
 
   await Promise.all(saves);

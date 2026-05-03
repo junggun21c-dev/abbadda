@@ -2030,6 +2030,21 @@ function renderCourseDetail(){
   const tr=c.transit||[];
   const naverQ=encodeURIComponent(c.title);
   const ytQ=encodeURIComponent(c.title+' 가족 나들이');
+
+  // 출발지↔첫 방문지, 마지막 방문지↔귀가 시간은 매 렌더마다 좌표 기준 재계산
+  // (스텝 변경 시 c.drive 같은 정적 값이 아닌 실제 거리로 자동 갱신되도록)
+  const firstStop = c.timeline[0];
+  const lastStop  = c.timeline[c.timeline.length-1];
+  const _fmtDrvMin = m => m==null ? '' : (m>=60 ? `${Math.floor(m/60)}시간${m%60?'<br>'+(m%60)+'분':''}` : m+'분');
+  function _legLabel(fromLat, fromLng, toLat, toLng, fallback) {
+    if (!fromLat || !fromLng || !toLat || !toLng) return fmtDrive(fallback);
+    const km = haversineKm(fromLat, fromLng, toLat, toLng);
+    const min = kmToDriveMin(km);
+    return `${_fmtDrvMin(min)}<br>${Math.round(km*10)/10}km`;
+  }
+  const lblToFirst  = _legLabel(userLat, userLng, firstStop && firstStop.lat, firstStop && firstStop.lng, c.drive);
+  const lblFromLast = _legLabel(lastStop && lastStop.lat, lastStop && lastStop.lng, userLat, userLng, c.drive);
+
   let html=`
   <div class="detail-hero" style="background:${c.bg}">
     <div class="detail-hero-emoji">${c.emoji}</div>
@@ -2053,7 +2068,7 @@ function renderCourseDetail(){
       <div class="home-info"><div class="home-label">출발지</div><div class="home-addr">${homeAddr}</div></div>
     </div>
     <div class="tl-conn-row">
-      <div class="tl-conn-left"><div class="tl-vseg"></div><span class="tl-transit-lbl">${fmtDrive(c.drive)}</span></div>
+      <div class="tl-conn-left"><div class="tl-vseg"></div><span class="tl-transit-lbl">${lblToFirst}</span></div>
     </div>`;
 
   c.timeline.forEach((s,i)=>{
@@ -2064,7 +2079,7 @@ function renderCourseDetail(){
     <div class="tl-item">
       <div class="tl-left">
         <div class="tl-num">${i+1}</div>
-        <div class="tl-vseg">${i<c.timeline.length-1?(tr[i]?'<span class="tl-transit-lbl">'+fmtMin(tr[i].min)+'</span>':''):'<span class="tl-transit-lbl">'+fmtDrive(c.drive)+'</span>'}</div>
+        <div class="tl-vseg">${i<c.timeline.length-1?(tr[i]?'<span class="tl-transit-lbl">'+fmtMin(tr[i].min)+(tr[i].km?'<br>'+tr[i].km+'km':'')+'</span>':''):'<span class="tl-transit-lbl">'+lblFromLast+'</span>'}</div>
       </div>
       <div class="tl-right">
         <div class="tl-header">

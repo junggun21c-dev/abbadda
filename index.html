@@ -166,6 +166,8 @@ animation:snowFall 3s linear infinite;pointer-events:none;}
 .tl-place{font-size:15px;font-weight:700;color:#111;}
 .tl-time{font-size:12px;color:#aaa;margin:2px 0 4px;}
 .tl-desc{font-size:13px;color:#555;line-height:1.6;}
+.tl-tel{color:#6C63FF;font-weight:600;text-decoration:none;}
+.tl-tel:active{opacity:0.7;}
 .tl-info-row{display:flex;gap:5px;flex-wrap:wrap;margin-top:5px;}
 .info-badge{display:inline-flex;align-items:center;gap:2px;font-size:10px;padding:2px 7px;border-radius:6px;font-weight:500;background:#F3F2F0;color:#666;}
 .info-badge.nrating{background:#F3F2F0;color:#666;}
@@ -1545,6 +1547,11 @@ function initHomeLabel() {
 
 function fmtMin(m){return m>=60?`${Math.floor(m/60)}시간${m%60?`<br>${m%60}분`:''}` :`${m}분`;}
 function fmtDrive(s){return s.replace(/약\s*/,'').replace(/(\d+시간)\s+(\d+분)/,'$1<br>$2');}
+// 텍스트 내 한국 전화번호 패턴(지역/휴대폰/대표번호)을 tel: 링크로 변환
+function linkifyPhone(text){
+  if(!text) return '';
+  return text.replace(/(0\d{1,2}-\d{3,4}-\d{4}|1[5-9]\d{2}-\d{4})/g, '<a href="tel:$1" class="tl-tel" onclick="event.stopPropagation()">$1</a>');
+}
 function shuffle(arr){return [...arr].sort(()=>Math.random()-0.5);}
 
 function setDist(el,min,max){
@@ -2085,7 +2092,7 @@ function renderCourseDetail(){
           <div><div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;"><div class="tl-place">${s.place}</div><a class="tl-search" href="https://search.naver.com/search.naver?query=${nq}" target="_blank" rel="noopener" onclick="event.stopPropagation()" aria-label="네이버 검색">↗</a><span class="tl-chip ${s.type}">${s.type==='food'?'식사':s.type==='cafe'?'카페':'장소'}</span></div><div class="tl-time">${t}</div></div>
           ${s.type!=='place'?`<button class="chg-btn" id="chgBtn${i}" onclick="changeStep(${i})">🔄 변경</button>`:''}
         </div>
-        <div class="tl-desc">${s.desc}</div>
+        <div class="tl-desc">${linkifyPhone(s.desc)}</div>
         ${(s.naverRating||s.admission||s.hours)?`
         <div class="tl-info-row">
           ${s.naverRating?`<span class="info-badge nrating">★ ${s.naverRating}${s.reviewCount?' ('+s.reviewCount+')':''}</span>`:''}

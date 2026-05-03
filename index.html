@@ -2468,6 +2468,12 @@ function saveHomeAddr(){
 }
 
 async function validateAndSaveAddr(v) {
+  // ⓪ 광역지자체명 단독 입력 → 즉시 매핑 좌표로 저장 (kakao 검색이 식당 등으로 잘못 잡지 않도록)
+  const region = regionCoordsForAddr(v);
+  if (region) {
+    commitAddr(v, region.lat, region.lng, region.regionName);
+    return;
+  }
   const loaded = await loadKakaoSDK();
   if(!loaded || typeof kakao === 'undefined' || !kakao.maps.services) {
     commitAddr(v, null, null); return;
@@ -2493,11 +2499,16 @@ async function validateAndSaveAddr(v) {
         tryCommit(parseFloat(places[0].y), parseFloat(places[0].x), places[0].place_name);
       }
     }, {size:1});
-    // 2초 후에도 둘 다 결과 없으면 좌표 없이 저장 (텍스트만)
+    // 2초 후에도 둘 다 결과 없으면 region fallback 또는 좌표 없이 저장
     setTimeout(() => {
       if(done) return; done = true;
-      commitAddr(v, null, null);
-      showToast('📍 주소를 저장했어요 (거리는 GPS로 자동계산)');
+      const fb = regionCoordsForAddr(v);
+      if (fb) {
+        commitAddr(v, fb.lat, fb.lng, fb.regionName);
+      } else {
+        commitAddr(v, null, null);
+        showToast('📍 주소를 저장했어요 (정확한 위치를 못 찾아 거리 계산이 부정확할 수 있어요)');
+      }
       resolve();
     }, 2000);
   });
@@ -2515,7 +2526,8 @@ function commitAddr(v, lat, lng, resolvedName) {
   hist.unshift({ addr: v, lat: lat||null, lng: lng||null, name: resolvedName||null });
   if (hist.length > 10) hist = hist.slice(0, 10);
   saveAddrHistory(hist);
-  document.getElementById('homeLabel').textContent=v.length>8?v.slice(0,8)+'…':v;
+  const lbl = document.getElementById('homeLabel');
+  if (lbl) lbl.textContent = v.length>8?v.slice(0,8)+'…':v;
   if(lat && lng){ userLat=lat; userLng=lng; localStorage.setItem('homeLatLng', JSON.stringify({lat,lng})); recalcDistances(); }
   // 지역 변경 시 행사 DB 초기화 → renderEvents가 로딩 상태 표시
   EVENTS_DB = [];
@@ -2555,6 +2567,54 @@ function loadKakaoSDK() {
     document.head.appendChild(script);
   });
   return _kakaoSdkPromise;
+}
+
+// 광역지자체명 단독 입력 시 카카오 검색이 엉뚱한 식당·상호를 잡지 않도록 직접 매핑
+const REGION_COORDS = {
+  '서울': {lat:37.5665, lng:126.9780},
+  '부산': {lat:35.1796, lng:129.0756},
+  '대구': {lat:35.8714, lng:128.6014},
+  '인천': {lat:37.4563, lng:126.7052},
+  '광주': {lat:35.1595, lng:126.8526},
+  '대전': {lat:36.3504, lng:127.3845},
+  '울산': {lat:35.5384, lng:129.3114},
+  '세종': {lat:36.4801, lng:127.2890},
+  '경기': {lat:37.4138, lng:127.5183},
+  '강원': {lat:37.8228, lng:128.1555},
+  '충북': {lat:36.6357, lng:127.4912},
+  '충남': {lat:36.5184, lng:126.8000},
+  '전북': {lat:35.7175, lng:127.1530},
+  '전남': {lat:34.8161, lng:126.4630},
+  '경북': {lat:36.5760, lng:128.5056},
+  '경남': {lat:35.4606, lng:128.2132},
+  '제주': {lat:33.4996, lng:126.5312},
+};
+function regionCoordsForAddr(v) {
+  if (!v) return null;
+  const t = v.trim();
+  const patterns = [
+    [/^서울(?:특별시|시)?$/, '서울'],
+    [/^부산(?:광역시|시)?$/, '부산'],
+    [/^대구(?:광역시|시)?$/, '대구'],
+    [/^인천(?:광역시|시)?$/, '인천'],
+    [/^광주(?:광역시|시)?$/, '광주'],
+    [/^대전(?:광역시|시)?$/, '대전'],
+    [/^울산(?:광역시|시)?$/, '울산'],
+    [/^세종(?:특별자치시|시)?$/, '세종'],
+    [/^경기(?:도)?$/, '경기'],
+    [/^강원(?:특별자치도|도|특별자치)?$/, '강원'],
+    [/^(?:충청북도|충북)$/, '충북'],
+    [/^(?:충청남도|충남)$/, '충남'],
+    [/^(?:전라북도|전북|전북특별자치도)$/, '전북'],
+    [/^(?:전라남도|전남)$/, '전남'],
+    [/^(?:경상북도|경북)$/, '경북'],
+    [/^(?:경상남도|경남)$/, '경남'],
+    [/^제주(?:특별자치도|도|특별자치)?$/, '제주'],
+  ];
+  for (const [re, key] of patterns) {
+    if (re.test(t)) return { ...REGION_COORDS[key], regionName: key };
+  }
+  return null;
 }
 
 const PLACE_COORDS = {

@@ -1926,9 +1926,7 @@ function courseCardHTML(c,i,animate){
     <div class="course-thumb" style="background:${c.bg}">
       <div style="font-size:50px">${c.emoji}</div>
       <div class="time-badge">🚗 ${c.drive}</div>
-      ${c.cost?`<div class="cost-badge">💰 ${c.cost}</div>`:''}
       <button class="fav-btn" onclick="event.stopPropagation();toggleFav(${c.id},this)">${favs.has(c.id)?'❤️':'🤍'}</button>
-      ${wcChips?`<div class="weather-compat">${wcChips}</div>`:''}
     </div>
     <div class="course-body">
       <div class="course-region-chip">${c.region}${c.cat?' · '+c.cat:''}</div>
@@ -2763,9 +2761,7 @@ function renderFavPage(){
       <div class="course-thumb" style="background:${c.bg}">
         <div style="font-size:50px">${c.emoji}</div>
         <div class="time-badge">🚗 ${c.drive}</div>
-        ${c.cost?`<div class="cost-badge">💰 ${c.cost}</div>`:''}
         <button class="fav-btn" onclick="event.stopPropagation();removeFav(${id},this)">❤️</button>
-        ${wcChips?`<div class="weather-compat">${wcChips}</div>`:''}
       </div>
       <div class="course-body">
         <div class="course-region-chip">${c.region}${c.cat?' · '+c.cat:''}</div>

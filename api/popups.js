@@ -155,7 +155,8 @@ async function fetchPopupPage(id, todayStr, futureLimit) {
     const lng = lngMatch ? parseFloat(lngMatch[0]) : null;
 
     // 주소에 광역시·도 prefix 누락 시 좌표로 보강 (예: "왕십리로 63" → "서울 왕십리로 63")
-    const provinceRx = /^(서울|부산|대구|인천|광주|대전|울산|세종|경기|강원|충북|충남|전북|전남|경북|경남|제주)/;
+    // "세종대로" 같은 도로명을 광역시로 오인하지 않도록 다음 글자 검증 (특별시/광역시/도/시/공백/끝)
+    const provinceRx = /^(서울|부산|대구|인천|광주|대전|울산|세종|경기|강원|충북|충남|전북|전남|경북|경남|제주)(?:특별시|광역시|특별자치시|특별자치도|도|시|\s|$)/;
     if (!address) {
       const r = regionFromCoords(lat, lng);
       if (r) address = r;

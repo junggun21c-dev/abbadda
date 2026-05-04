@@ -1955,6 +1955,7 @@ function getFilteredPool(){
     if(c.parking===false) return false;
     if(!isMetroUser && !c.isDynamic) return false; // 비수도권 사용자 → 수도권 정적 코스 제외
     if(c.title && c.title.includes('공원') && !allUnder3) return false; // 공원 코스: 3살 이하만
+    if(c.title && /묘역|묘지|묘소|묘원|묘비|봉안|납골|화장장|영안실|추모공원|추모관/.test(c.title)) return false; // 추모·장례 시설은 가족 코스에 부적합
     return inDistRange(c.driveMin) && weatherOk(c) && isTempOk(c) && isSeasonOpen(c);
   });
   if(catVal==='실외') pool=pool.filter(c=>c.cat==='실외');
@@ -3184,7 +3185,7 @@ let _tourPage = 1;
 let _tourExhausted = false;
 
 // 아이와 함께 가기 부적합한 목적지 키워드 (장소명에 포함 시 코스 제외)
-const DEST_EXCLUDE_KW = ['도서관','학습관','복지관','노인정','주민센터','주민자치','청소년수련관','실버','사회복지','교육원','연수원','훈련원','직업학교','교육청'];
+const DEST_EXCLUDE_KW = ['도서관','학습관','복지관','노인정','주민센터','주민자치','청소년수련관','실버','사회복지','교육원','연수원','훈련원','직업학교','교육청','묘역','묘지','묘소','묘원','묘비','봉안','납골','화장장','영안실','추모공원','추모관'];
 // 아이와 함께 가기 부적합한 식사 장소 키워드
 const FOOD_EXCLUDE_KW = ['양지탕','해장','포장마차','호프','주점','이자카야','바(bar)','술집','스낵바','맥주집','나이트','요정','유흥','성인'];
 // 카카오 category_name 기준 성인용 식당 카테고리
@@ -3327,7 +3328,7 @@ async function expandDynamicCourses() {
     return true;
   });
   const bgColors = typeof EVENT_BGS !== 'undefined' ? EVENT_BGS : ['#FFF0E8','#E8F4FF','#E8FFE8','#FFF8E8'];
-  const PLACE_BLOCK = /팬텀|성인|에로|어른전용|룸살롱|나이트클럽|유흥|단란|안마|골프|GOLF|컨트리클럽| CC$| GC$|경마|경륜|경정|카지노|사격장|찜질방|모텔/i;
+  const PLACE_BLOCK = /팬텀|성인|에로|어른전용|룸살롱|나이트클럽|유흥|단란|안마|골프|GOLF|컨트리클럽| CC$| GC$|경마|경륜|경정|카지노|사격장|찜질방|모텔|묘역|묘지|묘소|묘원|묘비|봉안|납골|화장장|영안실|추모공원|추모관/i;
   await Promise.all(activeCats.map(cat => new Promise(resolve => {
     ps.keywordSearch(cat.kw, (data, status) => {
       if (status === kakao.maps.services.Status.OK) {
@@ -3379,7 +3380,7 @@ async function loadDynamicCourses() {
     ps.keywordSearch(cat.kw, (data, status) => {
       if (status === kakao.maps.services.Status.OK) {
         // 부적합 장소 필터: 전화번호·도로명주소 없음, 카테고리 코드 불일치, 이름 블랙리스트
-        const PLACE_BLOCK = /팬텀|성인|에로|어른전용|룸살롱|나이트클럽|유흥|단란|안마|골프|GOLF|컨트리클럽| CC$| GC$|경마|경륜|경정|카지노|사격장|찜질방|모텔/i;
+        const PLACE_BLOCK = /팬텀|성인|에로|어른전용|룸살롱|나이트클럽|유흥|단란|안마|골프|GOLF|컨트리클럽| CC$| GC$|경마|경륜|경정|카지노|사격장|찜질방|모텔|묘역|묘지|묘소|묘원|묘비|봉안|납골|화장장|영안실|추모공원|추모관/i;
         const places = data.filter(p => {
           if (!p.phone || !p.phone.trim()) return false;
           if (!p.road_address_name || !p.road_address_name.trim()) return false;

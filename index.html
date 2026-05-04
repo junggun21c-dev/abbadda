@@ -379,7 +379,7 @@ animation:snowFall 3s linear infinite;pointer-events:none;}
     <div class="section-title">진행중 / 예정 행사 <span class="badge" id="eventBadge">LIVE</span></div>
     <div class="event-scroll" id="eventList"></div>
     <button class="view-all-btn" onclick="openEventAll()">전체보기 →</button>
-    <div class="section-title">진행중 / 예정 팝업 <span class="badge" id="popupBadge">NEW</span></div>
+    <div class="section-title">진행중 / 예정 팝업 <span class="badge" id="popupBadge">NEW</span> <a href="https://popply.co.kr" target="_blank" rel="noopener" style="font-size:10px;color:#aaa;font-weight:400;margin-left:4px;text-decoration:none">출처 Popply ↗</a></div>
     <div class="event-scroll" id="popupList"></div>
     <button class="view-all-btn" onclick="openPopupAll()">전체보기 →</button>
     <div class="section-title" id="courseSection">당일치기 추천 코스 <span class="badge" id="courseCount">0</span></div>
@@ -2951,6 +2951,10 @@ function openPopupDetail(id){
     <div class="sheet-sub" style="color:#6C63FF;font-weight:600">📅 ${p.date}</div>
     <div style="background:#F8F4EF;border-radius:14px;padding:12px 14px;margin:0.75rem 0;font-size:13px;color:#444;line-height:1.7">${p.desc}</div>
     <button class="efc-btn" style="width:100%;margin:8px 0 0" onclick="buildCourseWithPopup(${p.id})">➕ 이 팝업 넣어서 코스 짜기</button>
+    ${p.url ? `<div style="margin-top:12px;padding:10px 12px;background:#F8F7F5;border-radius:10px;font-size:11px;color:#888;display:flex;align-items:center;justify-content:space-between;gap:8px">
+      <span>정보 출처: <strong style="color:#666">Popply.co.kr</strong></span>
+      <a href="${p.url}" target="_blank" rel="noopener" style="color:#6C63FF;font-weight:600;text-decoration:none;font-size:11px;white-space:nowrap">원본 보기 →</a>
+    </div>` : ''}
   `;
   document.getElementById('modal').classList.add('open');
 }
@@ -2958,7 +2962,11 @@ function openPopupDetail(id){
 function openPopupAll(){
   const today=new Date(); today.setHours(0,0,0,0);
   const active=POPUPS_DB.filter(p=>!p.endDateRaw||new Date(p.endDateRaw)>=today);
-  let html=`<div class="sheet-title">🎪 진행중 / 예정 팝업</div><div style="font-size:12px;color:#aaa;margin-bottom:1rem">총 ${active.length}개 팝업</div>`;
+  let html=`<div class="sheet-title">🎪 진행중 / 예정 팝업</div><div style="font-size:12px;color:#aaa;margin-bottom:0.6rem">총 ${active.length}개 팝업</div>
+    <div style="font-size:11px;color:#888;background:#F8F7F5;border-radius:8px;padding:8px 12px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:8px">
+      <span>정보 출처: <strong style="color:#666">Popply.co.kr</strong></span>
+      <a href="https://popply.co.kr" target="_blank" rel="noopener" style="color:#6C63FF;font-weight:600;text-decoration:none;font-size:11px;white-space:nowrap">사이트 방문 →</a>
+    </div>`;
   active.forEach(p=>{
     const inRange=!p.distMin||inDistRange(p.distMin);
     const nameHtml=p.url

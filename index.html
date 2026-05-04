@@ -2044,7 +2044,7 @@ function renderCourses(animate){
   const pool=getFilteredPool();
   let unseen=pool.filter(c=>!shownCourseIds.has(c.id));
   if(unseen.length===0){shownCourseIds=new Set(); unseen=pool;}
-  const count = distMax===9999 ? 10 : 5;
+  const count = 10;
   const picked = shuffle(unseen).slice(0, count);
   displayedCourses=picked;
   picked.forEach(c=>shownCourseIds.add(c.id));
@@ -2133,7 +2133,7 @@ async function loadMoreCourses(){
     }
   }
   btn.classList.add('spinning');
-  const count = distMax===9999 ? 10 : 5;
+  const count = 10;
   const picked = shuffle(unseen).slice(0, count);
   picked.forEach(c=>shownCourseIds.add(c.id));
   const startIdx=displayedCourses.length;

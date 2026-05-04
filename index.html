@@ -15,8 +15,8 @@
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 html{overflow-y:scroll;scrollbar-gutter:stable;}
-body{font-family:'Noto Sans KR',sans-serif;background:#F5F6FA;min-height:100vh;display:flex;justify-content:center;}
-.app{width:100%;max-width:430px;background:#F5F6FA;min-height:100vh;padding-bottom:80px;}
+body{font-family:'Noto Sans KR',sans-serif;background:#F5F6FA;min-height:100vh;min-height:100dvh;display:flex;justify-content:center;}
+.app{width:100%;max-width:430px;background:#F5F6FA;min-height:100vh;min-height:100dvh;padding-bottom:calc(80px + env(safe-area-inset-bottom));}
 .header{background:linear-gradient(135deg,#6C63FF 0%,#a855f7 100%);padding:1.2rem 1rem 1rem;border-radius:0 0 28px 28px;position:relative;overflow:hidden;transition:background 2s ease;}
 .header-top{display:flex;align-items:center;justify-content:space-between;gap:10px;position:relative;z-index:1;}
 
@@ -239,7 +239,7 @@ animation:snowFall 3s linear infinite;pointer-events:none;}
 .alert-confirm{flex:1;padding:11px;border:none;border-radius:12px;background:#6C63FF;color:white;font-size:14px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;}
 .toast{position:fixed;bottom:100px;left:50%;transform:translateX(-50%);background:#222;color:white;font-size:13px;padding:10px 20px;border-radius:20px;z-index:600;opacity:0;transition:opacity 0.3s;pointer-events:none;white-space:nowrap;}
 .toast.show{opacity:1;}
-.nav-bar{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:430px;background:white;border-top:1px solid #E8E4DC;display:flex;padding:0.65rem 0 0.9rem;z-index:100;}
+.nav-bar{position:fixed;bottom:0;left:50%;transform:translate3d(-50%,0,0);width:100%;max-width:430px;background:white;border-top:1px solid #E8E4DC;display:flex;padding:0.65rem 0 calc(0.9rem + env(safe-area-inset-bottom));z-index:100;will-change:transform;}
 .nav-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11px;color:#aaa;cursor:pointer;font-family:'Noto Sans KR',sans-serif;}
 .nav-item.active{color:#6C63FF;font-weight:700;}
 .nav-icon{font-size:22px;}
@@ -3925,6 +3925,24 @@ loadEventsFromTourAPI();
 initLocation();
 setTimeout(() => { loadKakaoSDK(); checkUrlCourse(); checkUrlEvent(); checkUrlDyn(); }, 1500);
 setTimeout(() => { loadDynamicCourses(); }, 4000); // 위치·카카오 SDK 준비 후 동적 코스 로드
+
+// iOS Chrome 등 모바일에서 URL 바 동적 표시·숨김에 따라 position:fixed 요소가
+// layout viewport 기준으로 떠 보이는 문제 보정. VisualViewport API로
+// 시각 뷰포트 하단에 nav-bar를 고정.
+(function syncNavBarToVisualViewport(){
+  const nav = document.querySelector('.nav-bar');
+  if (!nav || !window.visualViewport) return;
+  const vv = window.visualViewport;
+  function update(){
+    // 레이아웃 뷰포트 - 시각 뷰포트 하단 = 보정해야 할 offset
+    const offset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+    nav.style.transform = `translate3d(-50%, ${-offset}px, 0)`;
+  }
+  vv.addEventListener('resize', update);
+  vv.addEventListener('scroll', update);
+  window.addEventListener('orientationchange', () => setTimeout(update, 100));
+  update();
+})();
 
 </script>
 <script>

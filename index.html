@@ -1140,17 +1140,49 @@ function getAreaCodesFromAddr(addr) {
   return [...codes];
 }
 
-/* 팝업 주소가 사용자 출발지 지역과 일치하는지 확인 */
-function popupMatchesHomeRegion(address) {
+/* 좌표 → 광역시·도 추정 (서버측 regionFromCoords와 동일 로직) */
+function regionFromCoords(lat, lng) {
+  if (!lat || !lng) return null;
+  if (lat >= 37.42 && lat <= 37.70 && lng >= 126.76 && lng <= 127.20) return '서울';
+  if (lat >= 37.35 && lat <= 37.60 && lng >= 126.42 && lng <= 126.78) return '인천';
+  if (lat >= 35.05 && lat <= 35.40 && lng >= 128.78 && lng <= 129.32) return '부산';
+  if (lat >= 35.78 && lat <= 35.95 && lng >= 128.46 && lng <= 128.78) return '대구';
+  if (lat >= 35.10 && lat <= 35.27 && lng >= 126.74 && lng <= 127.00) return '광주';
+  if (lat >= 36.22 && lat <= 36.50 && lng >= 127.28 && lng <= 127.55) return '대전';
+  if (lat >= 35.46 && lat <= 35.72 && lng >= 129.04 && lng <= 129.48) return '울산';
+  if (lat >= 36.45 && lat <= 36.78 && lng >= 127.16 && lng <= 127.40) return '세종';
+  if (lat >= 36.85 && lat <= 38.30 && lng >= 126.39 && lng <= 127.90) return '경기';
+  if (lat >= 37.05 && lat <= 38.62 && lng >= 127.55 && lng <= 129.40) return '강원';
+  if (lat >= 36.00 && lat <= 37.30 && lng >= 127.40 && lng <= 128.65) return '충북';
+  if (lat >= 36.00 && lat <= 37.05 && lng >= 126.10 && lng <= 127.55) return '충남';
+  if (lat >= 35.55 && lat <= 37.10 && lng >= 128.10 && lng <= 129.65) return '경북';
+  if (lat >= 34.55 && lat <= 35.85 && lng >= 127.55 && lng <= 129.10) return '경남';
+  if (lat >= 35.40 && lat <= 36.30 && lng >= 126.40 && lng <= 127.85) return '전북';
+  if (lat >= 33.80 && lat <= 35.40 && lng >= 125.20 && lng <= 127.55) return '전남';
+  if (lat >= 33.10 && lat <= 33.65 && lng >= 126.10 && lng <= 126.96) return '제주';
+  return null;
+}
+
+/* 팝업이 사용자 출발지 지역과 일치하는지 확인 (주소 우선, 좌표 폴백) */
+function popupMatchesHomeRegion(p) {
   if (!homeAddr || homeAddr === '출발지 미설정') return true;
-  if (!address) return false; // 출발지 설정됐는데 팝업 주소 불명 → 제외
+  // 하위호환: 문자열만 받았을 때
+  const address = typeof p === 'string' ? p : (p && p.loc) || '';
+  const lat = typeof p === 'object' ? p.lat : null;
+  const lng = typeof p === 'object' ? p.lng : null;
   const areaCodes = getAreaCodesFromAddr(homeAddr);
   const codeToKw = {
     '1':'서울','2':'인천','3':'대전','4':'대구','5':'광주','6':'부산',
     '7':'울산','8':'세종','31':'경기','32':'강원','33':'충북','34':'충남',
     '35':'경북','36':'경남','37':'전북','38':'전남','39':'제주'
   };
-  return areaCodes.some(c => codeToKw[c] && address.includes(codeToKw[c]));
+  // 1차: 주소 텍스트 매칭
+  if (address && areaCodes.some(c => codeToKw[c] && address.includes(codeToKw[c]))) return true;
+  // 2차: 좌표 기반 매칭 (주소 추출 실패 보완)
+  const coordRegion = regionFromCoords(lat, lng);
+  if (coordRegion && areaCodes.some(c => codeToKw[c] === coordRegion)) return true;
+  // 주소·좌표 모두 매칭 안 되면 제외 (단 둘 다 없으면 제외)
+  return false;
 }
 
 async function loadPopupsFromKakao() {
@@ -2909,7 +2941,7 @@ function renderPopups(){
   let active=all.filter(p=>{
     if(p.distMin && !inDistRange(p.distMin)) return false;
     // 좌표 유무 관계없이 항상 출발지 기반 지역 필터링
-    if(!popupMatchesHomeRegion(p.loc)) return false;
+    if(!popupMatchesHomeRegion(p)) return false;
     if(catVal==='실내' && getPopupPlaceType(p)!=='실내') return false;
     if(catVal==='실외' && getPopupPlaceType(p)!=='실외') return false;
     if(curAges[0]!==0 && calcAgeContentScore(p.name, curAges) <= -2) return false;

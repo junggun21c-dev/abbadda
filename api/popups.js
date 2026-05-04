@@ -2,10 +2,35 @@
 // 팝업 ID를 역순으로 스캔해 현재 진행중/예정 팝업을 수집
 
 const POPPLY_BASE = 'https://popply.co.kr/popup';
-const CONCURRENCY = 30;
+const CONCURRENCY = 50;
 const REQUEST_TIMEOUT_MS = 4000;
-const MAX_RESULTS = 50;
-const SCAN_BUDGET_MS = 28000; // 28초 내 완료
+const MAX_RESULTS = 100;
+const SCAN_BUDGET_MS = 45000; // 45초 내 완료 (Vercel maxDuration 60s)
+
+// 좌표 → 광역시·도 추정 (광역시 우선, 도 폴백)
+function regionFromCoords(lat, lng) {
+  if (!lat || !lng) return null;
+  // 광역시 (작고 밀집한 지역 먼저)
+  if (lat >= 37.42 && lat <= 37.70 && lng >= 126.76 && lng <= 127.20) return '서울';
+  if (lat >= 37.35 && lat <= 37.60 && lng >= 126.42 && lng <= 126.78) return '인천';
+  if (lat >= 35.05 && lat <= 35.40 && lng >= 128.78 && lng <= 129.32) return '부산';
+  if (lat >= 35.78 && lat <= 35.95 && lng >= 128.46 && lng <= 128.78) return '대구';
+  if (lat >= 35.10 && lat <= 35.27 && lng >= 126.74 && lng <= 127.00) return '광주';
+  if (lat >= 36.22 && lat <= 36.50 && lng >= 127.28 && lng <= 127.55) return '대전';
+  if (lat >= 35.46 && lat <= 35.72 && lng >= 129.04 && lng <= 129.48) return '울산';
+  if (lat >= 36.45 && lat <= 36.78 && lng >= 127.16 && lng <= 127.40) return '세종';
+  // 도 (광역시 매칭 실패 시 폴백)
+  if (lat >= 36.85 && lat <= 38.30 && lng >= 126.39 && lng <= 127.90) return '경기';
+  if (lat >= 37.05 && lat <= 38.62 && lng >= 127.55 && lng <= 129.40) return '강원';
+  if (lat >= 36.00 && lat <= 37.30 && lng >= 127.40 && lng <= 128.65) return '충북';
+  if (lat >= 36.00 && lat <= 37.05 && lng >= 126.10 && lng <= 127.55) return '충남';
+  if (lat >= 35.55 && lat <= 37.10 && lng >= 128.10 && lng <= 129.65) return '경북';
+  if (lat >= 34.55 && lat <= 35.85 && lng >= 127.55 && lng <= 129.10) return '경남';
+  if (lat >= 35.40 && lat <= 36.30 && lng >= 126.40 && lng <= 127.85) return '전북';
+  if (lat >= 33.80 && lat <= 35.40 && lng >= 125.20 && lng <= 127.55) return '전남';
+  if (lat >= 33.10 && lat <= 33.65 && lng >= 126.10 && lng <= 126.96) return '제주';
+  return null;
+}
 
 // 동적 ID 범위: 경험치 기준 ~100 ID/월, 2026-04 기준 최대 ID ≈ 4800
 const BASE_ID = 4800;
@@ -128,6 +153,16 @@ async function fetchPopupPage(id, todayStr, futureLimit) {
     const lngMatch = combined.match(/(?:126|127|128|129)\.[0-9]{4,}/) || html.match(/(?:126|127|128|129)\.[0-9]{4,}/);
     const lat = latMatch ? parseFloat(latMatch[0]) : null;
     const lng = lngMatch ? parseFloat(lngMatch[0]) : null;
+
+    // 주소에 광역시·도 prefix 누락 시 좌표로 보강 (예: "왕십리로 63" → "서울 왕십리로 63")
+    const provinceRx = /^(서울|부산|대구|인천|광주|대전|울산|세종|경기|강원|충북|충남|전북|전남|경북|경남|제주)/;
+    if (!address) {
+      const r = regionFromCoords(lat, lng);
+      if (r) address = r;
+    } else if (!provinceRx.test(address)) {
+      const r = regionFromCoords(lat, lng);
+      if (r) address = `${r} ${address}`;
+    }
 
     // 대표 이미지 (og:image 우선, 없으면 첫 번째 이미지 URL)
     const ogImgMatch = html.match(/property="og:image"\s+content="([^"]+)"/i)

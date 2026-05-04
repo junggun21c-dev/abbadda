@@ -1093,6 +1093,46 @@ const COURSES_DB = [
   {type:'food',place:'아산 순대국밥',desc:'충청도 순대국밥. 구수하고 저렴',naverRating:4.4,reviewCount:'2.1천',admission:null,hours:'07:00~21:00',tip:'아산 순대국밥(7,000원~) 가성비 최고. 시장 내 오래된 맛집 찾아보기'}]}
 ];
 
+// 정적 코스 대표 이미지 (TourAPI searchKeyword2로 사전 매핑 — visitkorea.or.kr CDN)
+const STATIC_COURSE_IMAGES = {
+  1: 'https://tong.visitkorea.or.kr/cms/resource/83/2795083_image2_1.jpeg',
+  2: 'https://tong.visitkorea.or.kr/cms/resource/12/3495012_image2_1.jpg',
+  3: 'https://tong.visitkorea.or.kr/cms/resource/34/3479534_image2_1.JPG',
+  4: 'https://tong.visitkorea.or.kr/cms/resource/81/3492581_image2_1.jpg',
+  5: 'https://tong.visitkorea.or.kr/cms/resource/94/4057794_image2_1.jpg',
+  6: 'https://tong.visitkorea.or.kr/cms/resource/59/3527359_image2_1.jpg',
+  7: 'https://tong.visitkorea.or.kr/cms/resource/70/3089670_image2_1.jpg',
+  8: 'https://tong.visitkorea.or.kr/cms/resource/60/2658460_image2_1.jpg',
+  9: 'https://tong.visitkorea.or.kr/cms/resource/44/3540144_image2_1.jpg',
+  10: 'https://tong.visitkorea.or.kr/cms/resource/87/4060887_image2_1.jpg',
+  11: 'https://tong.visitkorea.or.kr/cms/resource/58/3565358_image2_1.jpg',
+  12: 'https://tong.visitkorea.or.kr/cms/resource/56/3404756_image2_1.JPG',
+  13: 'https://tong.visitkorea.or.kr/cms/resource/87/3563987_image2_1.jpg',
+  14: 'https://tong.visitkorea.or.kr/cms/resource/71/1593471_image2_1.jpg',
+  15: 'https://tong.visitkorea.or.kr/cms/resource/45/3549045_image2_1.jpg',
+  16: 'https://tong.visitkorea.or.kr/cms/resource/56/3001856_image2_1.jpg',
+  17: 'https://tong.visitkorea.or.kr/cms/resource/94/3513794_image2_1.jpg',
+  18: 'https://tong.visitkorea.or.kr/cms/resource/37/737737_image2_1.jpg',
+  19: 'https://tong.visitkorea.or.kr/cms/resource/62/3534862_image2_1.jpg',
+  20: 'https://tong.visitkorea.or.kr/cms/resource/27/2651627_image2_1.bmp',
+  21: 'https://tong.visitkorea.or.kr/cms/resource/97/3496497_image2_1.jpg',
+  22: 'https://tong.visitkorea.or.kr/cms/resource/00/3523000_image2_1.jpg',
+  23: 'https://tong.visitkorea.or.kr/cms/resource/53/3486453_image2_1.jpg',
+  24: 'https://tong.visitkorea.or.kr/cms/resource/32/3482332_image2_1.PNG',
+  25: 'https://tong.visitkorea.or.kr/cms/resource/51/4031651_image2_1.jpg',
+  26: 'https://tong.visitkorea.or.kr/cms/resource/58/3446158_image2_1.jpg',
+  27: 'https://tong.visitkorea.or.kr/cms/resource/68/3482668_image2_1.jpg',
+  28: 'https://tong.visitkorea.or.kr/cms/resource/69/3512869_image2_1.jpg',
+  29: 'https://tong.visitkorea.or.kr/cms/resource/76/3541476_image2_1.jpg',
+  30: 'https://tong.visitkorea.or.kr/cms/resource/81/2642381_image2_1.jpg',
+  31: 'https://tong.visitkorea.or.kr/cms/resource/00/3578100_image2_1.jpg',
+  32: 'https://tong.visitkorea.or.kr/cms/resource/82/3532982_image2_1.jpg',
+  33: 'https://tong.visitkorea.or.kr/cms/resource/21/3450021_image2_1.jpg',
+  34: 'https://tong.visitkorea.or.kr/cms/resource/33/3558333_image2_1.jpg',
+  35: 'https://tong.visitkorea.or.kr/cms/resource/58/3537258_image2_1.JPG',
+};
+COURSES_DB.forEach(c => { if (STATIC_COURSE_IMAGES[c.id]) c.image = STATIC_COURSE_IMAGES[c.id]; });
+
 /* ─── TourAPI ─── */
 const EVENT_EMOJIS = ['🌸','🎠','🥁','🌿','🎨','🎵','🌊','🍓','🎪','🎭','🎡','🎢'];
 const EVENT_BGS = ['#FFF0F5','#FFF8E6','#EEF2FF','#EAFAF0','#EDE8F5','#E3F2FD','#E0F7FA','#FFEBEE','#FFF0DC','#F5EEE8'];

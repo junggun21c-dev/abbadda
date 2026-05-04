@@ -1978,7 +1978,7 @@ function getFilteredPool(){
 /* ─── 이미지 보강 (이미지 없는 코스에 대해 카카오 Daum 이미지 검색 호출) ─── */
 // 캐시 키 v2: 이전 빌드(KAKAO_REST_KEY 미설정 시점)에 null로 캐싱된 항목 무효화
 const _imgCache = (() => {
-  try { return JSON.parse(localStorage.getItem('placeImgCache_v2') || '{}'); } catch { return {}; }
+  try { return JSON.parse(localStorage.getItem('placeImgCache_v3') || '{}'); } catch { return {}; }
 })();
 const IMG_CACHE_TTL_OK = 7 * 86400000;   // 성공: 7일
 const IMG_CACHE_TTL_FAIL = 6 * 3600000;  // 실패: 6시간 (재시도 기회)
@@ -1991,7 +1991,7 @@ function _imgCacheGet(name){
 }
 function _imgCacheSet(name, url){
   _imgCache[name] = { url: url || null, ts: Date.now() };
-  try { localStorage.setItem('placeImgCache_v2', JSON.stringify(_imgCache)); } catch {}
+  try { localStorage.setItem('placeImgCache_v3', JSON.stringify(_imgCache)); } catch {}
 }
 // 이미지 URL이 실제로 로드되는지 확인 (hotlink 차단 호스트 우회용)
 function _preloadImg(url){

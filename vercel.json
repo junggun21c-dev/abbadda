@@ -12,6 +12,9 @@
     },
     "api/place-image.js": {
       "maxDuration": 10
+    },
+    "api/img.js": {
+      "maxDuration": 10
     }
   }
 }

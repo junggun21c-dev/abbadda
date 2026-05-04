@@ -36,9 +36,17 @@ export default async function handler(req, res) {
       && (!d.height || d.height >= 200)
     ) || docs[0];
 
+    // hotlink 차단 가능성 있는 도메인은 자동으로 /api/img 프록시 경유
+    // (NAVER 블로그 pstatic.net, Daum 카페 등은 외부 referer 차단)
+    const wrap = (u) => {
+      if (!u) return null;
+      const HOTLINK_RISKY = /(?:postfiles\.pstatic\.net|cafe\.daum\.net|t\d+\.daumcdn\.net|tistory\.com)/i;
+      return HOTLINK_RISKY.test(u) ? `/api/img?url=${encodeURIComponent(u)}` : u;
+    };
+
     return res.json({
-      url: valid.image_url || valid.thumbnail_url || null,
-      thumb: valid.thumbnail_url || null,
+      url: wrap(valid.image_url || valid.thumbnail_url || null),
+      thumb: wrap(valid.thumbnail_url || null),
     });
   } catch (e) {
     return res.json({ url: null, error: e.message });

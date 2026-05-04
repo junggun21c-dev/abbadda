@@ -96,18 +96,18 @@ animation:snowFall 3s linear infinite;pointer-events:none;}
 .refresh-btn:active{background:#F5F6FA;}
 .spinning .ref-icon{display:inline-block;animation:spin 0.6s linear infinite;}
 @keyframes spin{to{transform:rotate(360deg);}}
-.course-card{background:white;border:1px solid #E8E4DC;border-radius:20px;margin-bottom:1rem;overflow:hidden;cursor:pointer;transition:transform 0.15s;box-shadow:0 2px 10px rgba(0,0,0,0.05);}
+.course-card{display:flex;align-items:stretch;background:white;border:1px solid #E8E4DC;border-radius:16px;margin-bottom:0.7rem;overflow:hidden;cursor:pointer;transition:transform 0.15s;box-shadow:0 2px 10px rgba(0,0,0,0.04);}
 .course-card:active{transform:scale(0.985);}
-.course-thumb{width:100%;height:155px;display:flex;align-items:center;justify-content:center;font-size:50px;position:relative;background-size:cover;background-position:center;background-repeat:no-repeat;}
-.time-badge{position:absolute;top:12px;left:12px;background:rgba(0,0,0,0.55);color:white;font-size:11px;padding:4px 10px;border-radius:12px;font-weight:500;}
-.cost-badge{position:absolute;bottom:12px;left:12px;background:rgba(255,255,255,0.92);color:#444;font-size:10px;padding:3px 9px;border-radius:10px;font-weight:600;}
-.fav-btn{position:absolute;top:10px;right:12px;background:white;border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-size:15px;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.12);border:none;}
-.course-body{padding:12px 14px 14px;}
-.course-title{font-size:17px;font-weight:700;color:#111;margin-bottom:5px;}
-.course-meta{font-size:13px;color:#888;display:flex;align-items:center;gap:7px;margin-bottom:10px;}
+.course-thumb{width:120px;min-height:120px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:38px;position:relative;background-size:cover;background-position:center;background-repeat:no-repeat;align-self:stretch;}
+.time-badge{position:absolute;top:6px;left:6px;background:rgba(0,0,0,0.6);color:white;font-size:10px;padding:3px 7px;border-radius:10px;font-weight:500;line-height:1;}
+.cost-badge{position:absolute;bottom:6px;left:6px;background:rgba(255,255,255,0.92);color:#444;font-size:10px;padding:3px 7px;border-radius:8px;font-weight:600;}
+.fav-btn{position:absolute;top:8px;right:8px;background:white;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:13px;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.12);border:none;z-index:2;}
+.course-body{flex:1;padding:10px 12px 11px;min-width:0;position:relative;}
+.course-title{font-size:15px;font-weight:700;color:#111;margin-bottom:4px;line-height:1.3;padding-right:32px;}
+.course-meta{font-size:11px;color:#888;display:flex;align-items:center;gap:5px;margin-bottom:5px;}
 .star{color:#6C63FF;}
-.tag-row{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:9px;}
-.tag{font-size:12px;padding:4px 10px;border-radius:8px;font-weight:500;}
+.tag-row{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:5px;}
+.tag{font-size:10px;padding:2px 7px;border-radius:6px;font-weight:500;}
 .tag.orange{background:#EDE9FF;color:#5B3FCC;}
 .tag.blue{background:#EBF4FF;color:#1A6BBF;}
 .tag.green{background:#EAFAF0;color:#187A3D;}
@@ -256,13 +256,13 @@ animation:snowFall 3s linear infinite;pointer-events:none;}
 @keyframes fadeUp{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
 
 /* ── Course Card: stops flow ── */
-.course-region-chip{display:inline-block;background:#EDE9FF;color:#5B3FCC;border-radius:8px;padding:2px 8px;font-size:11px;font-weight:600;margin-bottom:5px;}
+.course-region-chip{display:inline-block;background:#EDE9FF;color:#5B3FCC;border-radius:8px;padding:2px 7px;font-size:10px;font-weight:600;margin-bottom:4px;max-width:calc(100% - 32px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .weather-compat{position:absolute;bottom:11px;right:12px;display:flex;gap:3px;}
 .wc-chip{background:rgba(255,255,255,0.88);border-radius:7px;padding:2px 5px;font-size:11px;}
-.stops-flow{display:flex;align-items:center;gap:4px;flex-wrap:nowrap;overflow:hidden;margin-bottom:10px;}
-.sf-chip{background:#F5F6FA;border:1px solid #E8E4DC;border-radius:8px;padding:4px 9px;font-size:12px;color:#444;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:95px;}
-.sf-arrow{color:#CCC;font-size:12px;flex-shrink:0;}
-.sf-more{font-size:12px;color:#aaa;flex-shrink:0;}
+.stops-flow{display:flex;align-items:center;gap:3px;flex-wrap:nowrap;overflow:hidden;margin-bottom:0;}
+.sf-chip{background:#F5F6FA;border:1px solid #E8E4DC;border-radius:7px;padding:3px 7px;font-size:10px;color:#444;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:78px;}
+.sf-arrow{color:#CCC;font-size:10px;flex-shrink:0;}
+.sf-more{font-size:10px;color:#aaa;flex-shrink:0;}
 
 /* ── Detail Modal: hero + stats ── */
 .detail-hero{display:flex;align-items:center;gap:12px;padding:14px 16px 16px;border-radius:16px;margin-bottom:1rem;}
@@ -1969,19 +1969,21 @@ function courseCardHTML(c,i,animate){
     return `<span class="sf-chip">${ico} ${s}</span>`;
   });
   const flowHtml=flowChips.map((chip,j)=>j<flowChips.length-1?chip+`<span class="sf-arrow">→</span>`:chip).join('')+(c.stops.length>maxShow?`<span class="sf-more">+${c.stops.length-maxShow}</span>`:'');
+  const thumbStyle = c.image
+    ? `background-image:url('${c.image}');background-color:#f0f0f0`
+    : `background:${c.bg}`;
   return `<div class="course-card${animate?' fade-in':''}" style="${animate?`animation-delay:${i*0.07}s`:''}" onclick="openCourse(${realIdx})">
-    <div class="course-thumb" style="background:${c.bg}">
-      <div style="font-size:50px">${c.emoji}</div>
+    <div class="course-thumb" style="${thumbStyle}">
+      ${c.image?'':c.emoji}
       <div class="time-badge">🚗 ${c.drive}</div>
-      <button class="fav-btn" onclick="event.stopPropagation();toggleFav(${c.id},this)">${favs.has(c.id)?'❤️':'🤍'}</button>
     </div>
     <div class="course-body">
+      <button class="fav-btn" onclick="event.stopPropagation();toggleFav(${c.id},this)">${favs.has(c.id)?'❤️':'🤍'}</button>
       <div class="course-region-chip">${c.region}${c.cat?' · '+c.cat:''}</div>
       <div class="course-title">${c.title}</div>
       ${c.rating?`<div class="course-meta"><span class="star">★</span>${c.rating}</div>`:''}
       <div class="tag-row">${c.tags.slice(0,3).map((t,j)=>`<span class="tag ${['orange','blue','green','purple'][j%4]}">${t}</span>`).join('')}</div>
       <div class="stops-flow">${flowHtml}</div>
-      <button class="go-btn" onclick="event.stopPropagation();openCourse(${realIdx})">코스 자세히 보기 →</button>
     </div>
   </div>`;
 }
@@ -2878,21 +2880,23 @@ function renderFavPage(){
       return `<span class="sf-chip">${ico} ${s}</span>`;
     });
     const flowHtml=flowChips.map((chip,j)=>j<flowChips.length-1?chip+`<span class="sf-arrow">→</span>`:chip).join('')+(c.stops.length>3?`<span class="sf-more">+${c.stops.length-3}</span>`:'');
+    const thumbStyle = c.image
+      ? `background-image:url('${c.image}');background-color:#f0f0f0`
+      : `background:${c.bg}`;
     return `<div class="course-card fade-in" style="animation-delay:${i*0.06}s" onclick="openCourse(${realIdx})">
-      <div class="course-thumb" style="background:${c.bg}">
-        <div style="font-size:50px">${c.emoji}</div>
+      <div class="course-thumb" style="${thumbStyle}">
+        ${c.image?'':c.emoji}
         <div class="time-badge">🚗 ${c.drive}</div>
-        <button class="fav-btn" onclick="event.stopPropagation();removeFav(${id},this)">❤️</button>
       </div>
       <div class="course-body">
+        <button class="fav-btn" onclick="event.stopPropagation();removeFav(${id},this)">❤️</button>
         <div class="course-region-chip">${c.region}${c.cat?' · '+c.cat:''}</div>
         <div class="course-title">${c.title}</div>
         ${c.rating?`<div class="course-meta"><span class="star">★</span>${c.rating}</div>`:''}
         <div class="tag-row">${c.tags.slice(0,3).map((t,j)=>`<span class="tag ${['orange','blue','green','purple'][j%4]}">${t}</span>`).join('')}</div>
         <div class="stops-flow">${flowHtml}</div>
         <div class="fav-card-actions">
-          <button class="go-btn" onclick="event.stopPropagation();openCourse(${realIdx})">코스 자세히 보기 →</button>
-          <button class="fav-del-btn" onclick="event.stopPropagation();removeFav(${id},this)">🗑️  삭제</button>
+          <button class="fav-del-btn" onclick="event.stopPropagation();removeFav(${id},this)">🗑️ 삭제</button>
         </div>
       </div>
     </div>`;
@@ -3165,6 +3169,7 @@ function _buildTourCourse(item, bgColors) {
     id: _dynId++,
     emoji: item.emoji,
     bg: bgColors[(_dynId - 2000) % bgColors.length],
+    image: item.firstimage || null,
     title: item.title,
     region, driveMin,
     drive: driveMin >= 60 ? `${Math.floor(driveMin/60)}시간${driveMin%60?' '+driveMin%60+'분':''}` : `${driveMin}분`,

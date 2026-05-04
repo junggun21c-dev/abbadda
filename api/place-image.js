@@ -11,10 +11,8 @@ export default async function handler(req, res) {
     return res.status(400).json({ url: null, error: 'invalid name' });
   }
 
-  const KEY = process.env.KAKAO_REST_KEY;
-  if (!KEY) {
-    return res.status(500).json({ url: null, error: 'KAKAO_REST_KEY env not set' });
-  }
+  // 환경변수 우선, 없으면 하드코딩 폴백 (다른 API 키들과 동일 정책)
+  const KEY = process.env.KAKAO_REST_KEY || '50386ea3f9addcd7a8fa9762625aa441';
 
   // 7일 CDN 캐시 + 24시간 stale-while-revalidate (장소 이미지는 거의 변하지 않음)
   res.setHeader('Cache-Control', 's-maxage=604800, stale-while-revalidate=86400');

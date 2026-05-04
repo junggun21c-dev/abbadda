@@ -1945,6 +1945,8 @@ function getFilteredPool(){
   const wEff = wLabel==='눈' ? '비' : wLabel;
   const weatherOk = (c) => catVal === '실내' ? true : c.weather.includes(wEff);
   const ages=getChildAges();
+  // "공원" 코스는 3살 이하 자녀에게만 노출 (어린 아이용 안전·간단 동선 우선)
+  const allUnder3 = ages.length>0 && ages[0]!==0 && ages.every(a=>a<=3);
   // 수도권(서울·경기·인천·강원) 외 지역 사용자에게는 수도권 정적 코스 숨김
   const homeCodes = getAreaCodesFromAddr(homeAddr !== '출발지 미설정' ? homeAddr : '');
   const isMetroUser = homeAddr === '출발지 미설정' || homeCodes.some(c=>['1','2','31','32'].includes(c));
@@ -1952,6 +1954,7 @@ function getFilteredPool(){
     if(c.timeline && c.timeline.some(s=>s.noKids)) return false;
     if(c.parking===false) return false;
     if(!isMetroUser && !c.isDynamic) return false; // 비수도권 사용자 → 수도권 정적 코스 제외
+    if(c.title && c.title.includes('공원') && !allUnder3) return false; // 공원 코스: 3살 이하만
     return inDistRange(c.driveMin) && weatherOk(c) && isTempOk(c) && isSeasonOpen(c);
   });
   if(catVal==='실외') pool=pool.filter(c=>c.cat==='실외');

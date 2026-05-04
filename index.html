@@ -1976,19 +1976,40 @@ function getFilteredPool(){
 }
 
 /* ─── 이미지 보강 (이미지 없는 코스에 대해 카카오 Daum 이미지 검색 호출) ─── */
+// 캐시 키 v2: 이전 빌드(KAKAO_REST_KEY 미설정 시점)에 null로 캐싱된 항목 무효화
 const _imgCache = (() => {
-  try { return JSON.parse(localStorage.getItem('placeImgCache') || '{}'); } catch { return {}; }
+  try { return JSON.parse(localStorage.getItem('placeImgCache_v2') || '{}'); } catch { return {}; }
 })();
-const IMG_CACHE_TTL = 7 * 86400000; // 7일
+const IMG_CACHE_TTL_OK = 7 * 86400000;   // 성공: 7일
+const IMG_CACHE_TTL_FAIL = 6 * 3600000;  // 실패: 6시간 (재시도 기회)
 function _imgCacheGet(name){
   const e = _imgCache[name];
   if (!e) return undefined;
-  if (Date.now() - e.ts > IMG_CACHE_TTL) return undefined;
-  return e.url; // null = "검색했지만 못 찾음"으로 마킹
+  const ttl = e.url ? IMG_CACHE_TTL_OK : IMG_CACHE_TTL_FAIL;
+  if (Date.now() - e.ts > ttl) return undefined;
+  return e.url; // null = "검색했지만 못 찾음" 마킹
 }
 function _imgCacheSet(name, url){
   _imgCache[name] = { url: url || null, ts: Date.now() };
-  try { localStorage.setItem('placeImgCache', JSON.stringify(_imgCache)); } catch {}
+  try { localStorage.setItem('placeImgCache_v2', JSON.stringify(_imgCache)); } catch {}
+}
+// 이미지 URL이 실제로 로드되는지 확인 (hotlink 차단 호스트 우회용)
+function _preloadImg(url){
+  return new Promise((resolve) => {
+    if (!url) { resolve(false); return; }
+    const img = new Image();
+    let done = false;
+    const finish = (ok) => { if (!done) { done = true; resolve(ok); } };
+    img.onload = () => finish(img.naturalWidth > 0);
+    img.onerror = () => finish(false);
+    img.src = url;
+    setTimeout(() => finish(false), 5000); // 5초 timeout
+  });
+}
+async function _pickUsableImage(primary, thumb){
+  if (primary && await _preloadImg(primary)) return primary;
+  if (thumb && thumb !== primary && await _preloadImg(thumb)) return thumb;
+  return null;
 }
 async function enrichCourseImages(courses){
   const need = courses.filter(c => !c.image && c.title);
@@ -2004,8 +2025,11 @@ async function enrichCourseImages(courses){
       const r = await fetch(`/api/place-image?name=${encodeURIComponent(c.title)}`);
       if (!r.ok) { _imgCacheSet(c.title, null); return; }
       const d = await r.json();
-      _imgCacheSet(c.title, d.url || null);
-      if (d.url) { c.image = d.url; updated = true; }
+      // 카카오 Daum 검색이 NAVER 블로그 등 hotlink 차단 도메인을 반환할 수 있어
+      // 실제 로드 가능 여부 검증 후 폴백(thumb)도 시도
+      const usable = await _pickUsableImage(d.url, d.thumb);
+      _imgCacheSet(c.title, usable);
+      if (usable) { c.image = usable; updated = true; }
     } catch { _imgCacheSet(c.title, null); }
   }));
   return updated;

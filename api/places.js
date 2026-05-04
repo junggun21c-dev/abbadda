@@ -22,7 +22,7 @@ export default async function handler(req, res) {
   ];
 
   // 가족·아이 부적합 장소 차단 (골프·성인·도박·유흥 등)
-  const NOT_FAMILY_FRIENDLY = /골프|GOLF|컨트리클럽|CC| GC$|경마|경륜|경정|카지노|사격|성인|에로|어른전용|룸살롱|나이트클럽|유흥|단란|안마|찜질방|모텔|호텔/i;
+  const NOT_FAMILY_FRIENDLY = /골프|GOLF|컨트리클럽|CC| GC$|경마|경륜|경정|카지노|사격|성인|에로|어른전용|룸살롱|나이트클럽|유흥|단란|안마|찜질방|모텔|호텔|묘역|묘지|묘소|묘원|묘비|봉안|납골|화장장|영안실|추모공원|추모관/i;
 
   const fetchType = async (ct) => {
     try {

@@ -1894,7 +1894,13 @@ async function buildCourseWithEvent(eventId) {
   if (!e) return;
   showToast('주변 맛집/카페 검색 중... 🔍');
   const loaded = await loadKakaoSDK();
-  const coords = PLACE_COORDS[e.loc] || {lat:37.5665, lng:126.9780};
+  // 행사 자체 좌표가 가장 정확 → 정적 매핑 → 사용자 거주지 → 서울시청(최후 fallback)
+  // 이전엔 PLACE_COORDS 매칭 실패 시 무조건 서울시청으로 떨어져 광명 행사도 서울 중구
+  // 식당/카페가 추천되는 버그가 있었음
+  const coords = (e.lat && e.lng)
+    ? { lat: parseFloat(e.lat), lng: parseFloat(e.lng) }
+    : (PLACE_COORDS[e.loc]
+        || (userLat && userLng ? { lat: userLat, lng: userLng } : { lat: 37.5665, lng: 126.9780 }));
   let restaurant = null, cafe = null;
   if (loaded) {
     const [restaurants, cafes] = await Promise.all([
@@ -1910,6 +1916,11 @@ async function buildCourseWithEvent(eventId) {
   const rLng = restaurant ? parseFloat(restaurant.x) : null;
   const cLat = cafe ? parseFloat(cafe.y) : null;
   const cLng = cafe ? parseFloat(cafe.x) : null;
+  // 실제 거리·시간 계산 (이전엔 0.5km/5분, 0.8km/4분 하드코딩이라 부정확)
+  const kmEvtToR = (rLat && rLng) ? haversineKm(evtLat, evtLng, rLat, rLng) : 0.5;
+  const kmRToC = (rLat && rLng && cLat && cLng) ? haversineKm(rLat, rLng, cLat, cLng) : 0.5;
+  const minEvtToR = (rLat && rLng) ? kmToDriveMin(kmEvtToR) : 5;
+  const minRToC = (rLat && rLng && cLat && cLng) ? kmToDriveMin(kmRToC) : 4;
   const tempCourse = {
     id: 9000+eventId, emoji:e.emoji, bg:e.bg,
     title:`${e.name} 당일 코스`, region:e.loc,
@@ -1917,7 +1928,7 @@ async function buildCourseWithEvent(eventId) {
     cat:'실외', weather:['맑음','흐림','비'], tags:['행사','축제'], cost:'별도확인',
     destLat:evtLat, destLng:evtLng,
     stops:[e.name, restaurant?restaurant.place_name:'주변 식당', cafe?cafe.place_name:'주변 카페'],
-    transit:[{km:0.5,min:5},{km:0.8,min:4}],
+    transit:[{km:Math.round(kmEvtToR*10)/10, min:minEvtToR}, {km:Math.round(kmRToC*10)/10, min:minRToC}],
     timeline:[
       {type:'place',place:e.name,lat:evtLat,lng:evtLng,desc:`📅 ${e.date} | 📍 ${e.loc}`},
       {type:'food',place:restaurant?restaurant.place_name:'행사장 주변 식당',
@@ -3222,6 +3233,10 @@ async function buildCourseWithPopup(popupId){
   PLACE_COORDS[restaurantName]={lat:restaurantLat, lng:restaurantLng};
   PLACE_COORDS[cafeName]      ={lat:cafeLat,       lng:cafeLng};
 
+  // 실제 거리·시간 계산 (이전엔 0.5km/5분, 0.8km/4분 하드코딩)
+  const kmPToR = haversineKm(pCoords.lat, pCoords.lng, restaurantLat, restaurantLng);
+  const kmRToC2 = haversineKm(restaurantLat, restaurantLng, cafeLat, cafeLng);
+
   const tempCourse={
     id:9500+popupId, emoji:p.emoji, bg:p.bg,
     title:`${p.name} 팝업 코스`, region:p.region,
@@ -3229,7 +3244,7 @@ async function buildCourseWithPopup(popupId){
     cat:'실내', weather:['맑음','흐림','비'], tags:['팝업','체험'], cost:'별도확인',
     destLat:pCoords.lat, destLng:pCoords.lng,
     stops:[p.name, restaurantName, cafeName],
-    transit:[{km:0.5,min:5},{km:0.8,min:4}],
+    transit:[{km:Math.round(kmPToR*10)/10, min:kmToDriveMin(kmPToR)}, {km:Math.round(kmRToC2*10)/10, min:kmToDriveMin(kmRToC2)}],
     timeline:[
       {type:'place', place:p.name,         lat:pCoords.lat,    lng:pCoords.lng,    desc:`📅 ${p.date} | 📍 ${p.loc}`},
       {type:'food',  place:restaurantName,  lat:restaurantLat,  lng:restaurantLng,  desc:restaurantDesc, kakaoUrl:restaurant?restaurant.place_url:null},

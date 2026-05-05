@@ -25,6 +25,17 @@ function hash(s) {
   return Math.abs(h).toString(36);
 }
 
+// og:image content가 valid 이미지 URL인지 검증
+// 일부 사이트는 og:image content에 안내 텍스트 박아놓음 (예: "대표이미지주소(full_url):관리자등록권장")
+function isValidImageUrl(s) {
+  if (!s || typeof s !== 'string') return false;
+  // 절대 URL 또는 protocol-relative URL만
+  if (!/^(https?:)?\/\//i.test(s)) return false;
+  // 한국어 placeholder 키워드 거부
+  if (/관리자|등록|권장|예시|샘플|이미지주소|full_url|placeholder|example|your[-_]?image|이미지크기/i.test(s)) return false;
+  return true;
+}
+
 function extractOgImage(html) {
   // 다양한 메타태그 패턴: property/name 모두 + 순서 무관
   const patterns = [
@@ -36,7 +47,10 @@ function extractOgImage(html) {
   ];
   for (const re of patterns) {
     const m = html.match(re);
-    if (m && m[1]) return m[1].trim();
+    if (m && m[1]) {
+      const v = m[1].trim();
+      if (isValidImageUrl(v)) return v;
+    }
   }
   return null;
 }
@@ -114,9 +128,8 @@ async function _handler(req, res) {
     } catch {}
   }
 
-  // 캐시 키 v2: 네이버 검색 fallback 추가로 인한 기존 NONE 캐시 무효화
-  // (이전엔 og:image 없으면 즉시 NONE 저장 → 새 코드의 네이버 fallback 시도 안 됨)
-  const cacheKey = `og-image:v2:${hash(parsed ? url : `t:${title}`)}`;
+  // 캐시 키 v3: og:image URL 검증 + redirect 방식 추가로 인한 기존 NONE 캐시 무효화
+  const cacheKey = `og-image:v3:${hash(parsed ? url : `t:${title}`)}`;
 
   const sendPng = (status, png) => {
     const ttl = status === 200 ? 604800 : 86400;
@@ -145,27 +158,47 @@ async function _handler(req, res) {
 
   // 1순위: url 페이지 og:image 추출
   let candidateImageUrl = null;
+  let stage = '';
   if (parsed) {
     try {
       const pageResp = await fetch(url, { headers: { 'User-Agent': UA }, redirect: 'follow' });
       if (pageResp.ok) {
         const html = await pageResp.text();
         const ogImageRaw = extractOgImage(html);
-        if (ogImageRaw) candidateImageUrl = resolveUrl(pageResp.url || url, ogImageRaw);
+        if (ogImageRaw) {
+          candidateImageUrl = resolveUrl(pageResp.url || url, ogImageRaw);
+          stage = 'og';
+        } else {
+          stage = 'og-not-found';
+        }
+      } else {
+        stage = `page-${pageResp.status}`;
       }
-    } catch {}
+    } catch (e) {
+      stage = `page-fetch-failed`;
+    }
   }
 
   // 2순위: 네이버 이미지 검색 (title 사용)
   if (!candidateImageUrl && title && typeof title === 'string') {
-    candidateImageUrl = await naverImageSearch(title);
+    const naver = await naverImageSearch(title);
+    if (naver) {
+      candidateImageUrl = naver;
+      stage = (stage ? stage + '+' : '') + 'naver';
+    } else {
+      stage = (stage ? stage + '+' : '') + 'naver-failed';
+    }
   }
 
-  if (!candidateImageUrl) return failFallback('no candidate');
+  if (!candidateImageUrl) {
+    res.setHeader('X-OG-Stage', stage || 'no-source');
+    return failFallback('no candidate');
+  }
 
   // 성공 → KV에 image URL 저장 후 redirect (Vercel runtime은 image fetch 안 함)
   // 이전엔 fetchImage로 binary stream했는데 일부 사이트 SSL 호환성 issue로 실패 → redirect로 회피
   await kvSet(cacheKey, candidateImageUrl, 7 * 86400).catch(() => {});
   res.setHeader('Cache-Control', 'public, s-maxage=604800, stale-while-revalidate=86400');
+  res.setHeader('X-OG-Stage', stage);
   return res.redirect(302, candidateImageUrl);
 }

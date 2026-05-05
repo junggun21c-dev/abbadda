@@ -5,9 +5,8 @@ async function loadSigunData() {
   try {
     const fs = await import('fs/promises');
     const path = await import('path');
-    const url = await import('url');
-    const dir = path.dirname(url.fileURLToPath(import.meta.url));
-    const raw = await fs.readFile(path.join(dir, '_data', 'sigun-festivals.json'), 'utf-8');
+    // process.cwd()는 Vercel 함수 환경에서 안정적 (import.meta.url은 빌드 환경에 따라 깨짐)
+    const raw = await fs.readFile(path.join(process.cwd(), 'api', '_data', 'sigun-festivals.json'), 'utf-8');
     _SIGUN_DATA_CACHE = JSON.parse(raw);
   } catch (e) {
     console.warn('[events.js] sigun data load failed:', e.message);

@@ -404,26 +404,6 @@ export default async function handler(req, res) {
         const d = `${m[1]}${m[2].padStart(2,'0')}${m[3].padStart(2,'0')}`;
         return { start: d, end: d };
       }
-      // 연도 없는 패턴: "5월 5일" 또는 "5월 5일 ~ 5월 10일" — 현재 연도 가정
-      // 단, 이미 지난 날이면 다음 해로 추정 (연중 반복 축제는 다음 회차 일정 가능성)
-      const curY = new Date().getFullYear();
-      const todayMd = `${String(new Date().getMonth()+1).padStart(2,'0')}${String(new Date().getDate()).padStart(2,'0')}`;
-      m = text.match(/(\d{1,2})\s*월\s*(\d{1,2})\s*일[^~∼\-]*[~∼\-]\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일/);
-      if (m) {
-        const sm = m[1].padStart(2,'0'), sd = m[2].padStart(2,'0');
-        const em = m[3].padStart(2,'0'), ed = m[4].padStart(2,'0');
-        const sMd = sm + sd;
-        const y = sMd >= todayMd ? curY : curY + 1;
-        return { start: `${y}${sm}${sd}`, end: `${y}${em}${ed}` };
-      }
-      m = text.match(/(\d{1,2})\s*월\s*(\d{1,2})\s*일/);
-      if (m) {
-        const sm = m[1].padStart(2,'0'), sd = m[2].padStart(2,'0');
-        const sMd = sm + sd;
-        const y = sMd >= todayMd ? curY : curY + 1;
-        const d = `${y}${sm}${sd}`;
-        return { start: d, end: d };
-      }
       return null;
     };
 

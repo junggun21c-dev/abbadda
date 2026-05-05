@@ -11,6 +11,9 @@ export default async function handler(req, res) {
   // 6개월 전 시작일 (진행중인 장기 행사 포함)
   const past = new Date(now); past.setDate(past.getDate() - 180);
   const startFrom = past.toISOString().slice(0,10).replace(/-/g,'');
+  // 1년 후 종료일 (KCISA period2처럼 to 상한이 필요한 API용)
+  const future = new Date(now); future.setDate(future.getDate() + 365);
+  const endTo = future.toISOString().slice(0,10).replace(/-/g,'');
 
   const { areaCodes } = req.query;
   const codes = (areaCodes || '1,31').split(',').map(s => s.trim()).filter(Boolean).slice(0, 8);
@@ -23,6 +26,15 @@ export default async function handler(req, res) {
     '32': '강원특별자치도', '33': '충청북도', '34': '충청남도',
     '35': '경상북도', '36': '경상남도', '37': '전북특별자치도',
     '38': '전라남도', '39': '제주특별자치도',
+  };
+
+  // 지역코드 → KCISA area 단축명 (한국문화정보원 응답 필터용)
+  const AREA_TO_KCISA = {
+    '1': '서울', '2': '인천', '3': '대전', '4': '대구',
+    '5': '광주', '6': '부산', '7': '울산', '8': '세종',
+    '31': '경기', '32': '강원', '33': '충북', '34': '충남',
+    '35': '경북', '36': '경남', '37': '전북', '38': '전남',
+    '39': '제주',
   };
 
   const seen = new Set();
@@ -164,7 +176,55 @@ export default async function handler(req, res) {
     } catch {}
   };
 
-  // ── 4) 전국문화축제표준데이터 (공공데이터포털 · 지자체 소규모 축제 보완) ──
+  // ── 4) 한국문화정보원 한눈에보는문화정보 (B553457/cultureinfo · keyword=축제 보강) ──
+  // 응답이 XML이라 정규식 파싱. 자체 API 없는 도(강원·충북·전북·전남·경북·경남)에 특히 유용
+  const fetchKcisa = async () => {
+    const targetAreas = new Set(codes.map(c => AREA_TO_KCISA[c]).filter(Boolean));
+    if (targetAreas.size === 0) return;
+    const decode = s => s.replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#39;/g,"'");
+    const get = (xml, tag) => {
+      const m = xml.match(new RegExp(`<${tag}>([^<]*)</${tag}>`));
+      return m ? decode(m[1]) : '';
+    };
+    // KCISA는 페이지네이션이 같은 seq를 반복 반환해 1페이지만 호출 (실제 보강 effect 제한적)
+    try {
+      const url = `https://apis.data.go.kr/B553457/cultureinfo/period2?serviceKey=${TOUR_KEY}&from=${todayCompact}&to=${endTo}&keyword=${encodeURIComponent('축제')}&pageNo=1`;
+      const resp = await fetch(url);
+      if (!resp.ok) return;
+      const xml = await resp.text();
+      const items = xml.match(/<item>[\s\S]*?<\/item>/g) || [];
+      for (const it of items) {
+        const area = get(it, 'area');
+        if (!targetAreas.has(area)) continue;
+        const realm = get(it, 'realmName');
+        const title = get(it, 'title');
+        if (realm !== '행사/축제' && !title.includes('축제') && !title.includes('페스티벌')) continue;
+        const startDate = get(it, 'startDate');
+        const endDate = get(it, 'endDate');
+        if (endDate.length === 8 && endDate < todayCompact) continue;
+        const seq = get(it, 'seq');
+        const key = 'kcisa_' + (seq || title + startDate);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        allItems.push({
+          title,
+          eventstartdate: startDate,
+          eventenddate: endDate,
+          addr1: `${area} ${get(it, 'sigungu')} ${get(it, 'place')}`.trim(),
+          mapy: get(it, 'gpsY') || null,
+          mapx: get(it, 'gpsX') || null,
+          contentid: key,
+          firstimage: get(it, 'thumbnail'),
+          url: '',
+          usefee: '',
+          usetimefestival: '',
+          codename: '축제',
+        });
+      }
+    } catch {}
+  };
+
+  // ── 5) 전국문화축제표준데이터 (공공데이터포털 · 지자체 소규모 축제 보완) ──
   // 지역 필터 파라미터 미지원 → 전체 1,269건을 2페이지로 병렬 fetch, insttNm으로 지역 필터
   const fetchPublicFestival = async () => {
     const sidos = [...new Set(codes.map(c => AREA_TO_SIDO[c]).filter(Boolean))];
@@ -221,6 +281,8 @@ export default async function handler(req, res) {
     if (tasks.length === 0) tasks.push(fetchTour('1'));
     // 부산 자체 API: 부산(areaCode=6) 포함 시 보강
     tasks.push(fetchBusan());
+    // 한국문화정보원: 자체 API 없는 도(강원·충북·전북·전남·경북·경남)에 특히 유용
+    tasks.push(fetchKcisa());
     // 전국문화축제표준데이터: 요청 1회로 전체 fetch 후 지역 필터
     tasks.push(fetchPublicFestival());
     await Promise.all(tasks);

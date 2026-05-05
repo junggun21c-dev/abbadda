@@ -166,11 +166,16 @@ async function _handler(req, res) {
     return sendPng(404, TRANSPARENT_PNG);
   };
 
+  // ?nocache=1 또는 ?nc=1 시 KV 캐시 우회 (디버그용)
+  const noCache = req.query.nocache === '1' || req.query.nc === '1';
+
   // KV 캐시 조회
   let cachedImageUrl = null;
-  try {
-    cachedImageUrl = await kvGet(cacheKey);
-  } catch {}
+  if (!noCache) {
+    try {
+      cachedImageUrl = await kvGet(cacheKey);
+    } catch {}
+  }
 
   if (cachedImageUrl === 'NONE') {
     res.setHeader('X-OG-Stage', 'cache-none');

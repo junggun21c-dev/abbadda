@@ -16,6 +16,15 @@
     },
     "api/img.js": {
       "maxDuration": 10
+    },
+    "api/cron-crawl-festivals.js": {
+      "maxDuration": 60
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/cron-crawl-festivals",
+      "schedule": "0 18 * * *"
+    }
+  ]
 }

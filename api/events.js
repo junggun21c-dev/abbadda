@@ -1,11 +1,23 @@
-// 시군청 보도자료 RSS 크롤 결과 (handler 안에서 dynamic load — top-level fs/url 호환성 회피)
+// 시군청 보도자료 RSS 크롤 결과: KV(매일 cron 갱신) 우선, 정적 JSON fallback
+import { kvGet } from './_kv.js';
+
 let _SIGUN_DATA_CACHE = null;
 async function loadSigunData() {
   if (_SIGUN_DATA_CACHE) return _SIGUN_DATA_CACHE;
+  // 1순위: KV (cron-crawl-festivals.js가 매일 갱신)
+  try {
+    const cached = await kvGet('sigun-festivals');
+    if (cached) {
+      _SIGUN_DATA_CACHE = JSON.parse(cached);
+      return _SIGUN_DATA_CACHE;
+    }
+  } catch (e) {
+    console.warn('[events.js] KV sigun load failed:', e.message);
+  }
+  // 2순위: 정적 JSON (KV 미설정 또는 cron 미실행 시 fallback)
   try {
     const fs = await import('fs/promises');
     const path = await import('path');
-    // process.cwd()는 Vercel 함수 환경에서 안정적 (import.meta.url은 빌드 환경에 따라 깨짐)
     const raw = await fs.readFile(path.join(process.cwd(), 'api', '_data', 'sigun-festivals.json'), 'utf-8');
     _SIGUN_DATA_CACHE = JSON.parse(raw);
   } catch (e) {

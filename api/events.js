@@ -4,6 +4,7 @@ export default async function handler(req, res) {
 
   const SEOUL_KEY = '6a7a54434f6a756e38375463465563';
   const TOUR_KEY = '7cd0819411acef067d0cc1ab73350bb7105cde8c2fd3de620bec99e518953f95';
+  const GG_KEY = '5cce9b5d50f0426c99d30edb5efd9de0'; // 경기데이터드림 인증키
   const now = new Date();
   const todayStr = now.toISOString().slice(0, 10);
   const todayCompact = todayStr.replace(/-/g, '');
@@ -224,7 +225,46 @@ export default async function handler(req, res) {
     } catch {}
   };
 
-  // ── 5) 전국문화축제표준데이터 (공공데이터포털 · 지자체 소규모 축제 보완) ──
+  // ── 5) 경기데이터드림 문화축제 현황 (경기 areaCode=31 요청 시 보강) ──
+  // openapi.gg.go.kr는 봇 차단 정책 → User-Agent 헤더 필수
+  const fetchGyeonggi = async () => {
+    if (!codes.includes('31')) return;
+    try {
+      const url = `https://openapi.gg.go.kr/CultureFestival?KEY=${GG_KEY}&Type=json&pIndex=1&pSize=500`;
+      const resp = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; abbadda/1.0)' } });
+      if (!resp.ok) return;
+      const data = await resp.json();
+      const root = data?.CultureFestival;
+      if (!Array.isArray(root)) return;
+      const rows = root[1]?.row || [];
+      for (const r of rows) {
+        const title = r.FASTVL_NM || '';
+        if (!title) continue;
+        const startDate = String(r.FASTVL_BEGIN_DE || '').replace(/-/g, '');
+        const endDate = String(r.FASTVL_END_DE || '').replace(/-/g, '');
+        if (endDate.length === 8 && endDate < todayCompact) continue;
+        const key = 'gg_' + title + startDate;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        allItems.push({
+          title,
+          eventstartdate: startDate,
+          eventenddate: endDate,
+          addr1: r.REFINE_ROADNM_ADDR || r.REFINE_LOTNO_ADDR || `경기도 ${r.OPENMEET_PLC || ''}`,
+          mapy: r.REFINE_WGS84_LAT || null,
+          mapx: r.REFINE_WGS84_LOGT || null,
+          contentid: key,
+          firstimage: '',
+          url: r.HMPG_ADDR || '',
+          usefee: '',
+          usetimefestival: '',
+          codename: '축제',
+        });
+      }
+    } catch {}
+  };
+
+  // ── 6) 전국문화축제표준데이터 (공공데이터포털 · 지자체 소규모 축제 보완) ──
   // 지역 필터 파라미터 미지원 → 전체 1,269건을 2페이지로 병렬 fetch, insttNm으로 지역 필터
   const fetchPublicFestival = async () => {
     const sidos = [...new Set(codes.map(c => AREA_TO_SIDO[c]).filter(Boolean))];
@@ -283,6 +323,8 @@ export default async function handler(req, res) {
     tasks.push(fetchBusan());
     // 한국문화정보원: 자체 API 없는 도(강원·충북·전북·전남·경북·경남)에 특히 유용
     tasks.push(fetchKcisa());
+    // 경기데이터드림: 경기(areaCode=31) 포함 시 보강
+    tasks.push(fetchGyeonggi());
     // 전국문화축제표준데이터: 요청 1회로 전체 fetch 후 지역 필터
     tasks.push(fetchPublicFestival());
     await Promise.all(tasks);

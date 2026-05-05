@@ -325,8 +325,9 @@ export default async function handler(req, res) {
   // ── 7) 네이버 블로그 검색 — 사용자 거주 시군의 신규 축제 자동 발견 (전국 226개 시군 커버) ──
   // RSS·공공API에 없는 신규 축제를 포착. 결과는 KV에 24시간 캐시 (같은 시군 사용자는 첫 호출만 비용)
   const fetchNaverBlog = async () => {
-    const naverId = process.env.NAVER_CLIENT_ID;
-    const naverSecret = process.env.NAVER_CLIENT_SECRET;
+    // 환경변수 우선, 없으면 하드코딩 fallback (다른 키들과 일관성)
+    const naverId = process.env.NAVER_CLIENT_ID || 'ioZXkMir4q45hSe5NjQx';
+    const naverSecret = process.env.NAVER_CLIENT_SECRET || 'mqfNVKWzGo';
     if (!naverId || !naverSecret || !userSigun) return;
 
     const cacheKey = `naver-festivals:${userSigun}`;

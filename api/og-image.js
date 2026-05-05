@@ -61,8 +61,9 @@ async function fetchImage(imageUrl) {
 
 // 네이버 이미지 검색 — title로 행사 대표 이미지 검색 (og:image 없는 사이트 fallback)
 async function naverImageSearch(title) {
-  const id = process.env.NAVER_CLIENT_ID;
-  const secret = process.env.NAVER_CLIENT_SECRET;
+  // 환경변수 우선, 없으면 하드코딩 fallback
+  const id = process.env.NAVER_CLIENT_ID || 'ioZXkMir4q45hSe5NjQx';
+  const secret = process.env.NAVER_CLIENT_SECRET || 'mqfNVKWzGo';
   if (!id || !secret || !title) return null;
   try {
     const q = encodeURIComponent(title);
@@ -98,8 +99,9 @@ export default async function handler(req, res) {
     } catch {}
   }
 
-  // 캐시 키: url 우선, 없으면 title (같은 title은 같은 이미지 공유)
-  const cacheKey = `og-image:${hash(parsed ? url : `t:${title}`)}`;
+  // 캐시 키 v2: 네이버 검색 fallback 추가로 인한 기존 NONE 캐시 무효화
+  // (이전엔 og:image 없으면 즉시 NONE 저장 → 새 코드의 네이버 fallback 시도 안 됨)
+  const cacheKey = `og-image:v2:${hash(parsed ? url : `t:${title}`)}`;
 
   const sendPng = (status, png) => {
     const ttl = status === 200 ? 604800 : 86400;

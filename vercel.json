@@ -17,6 +17,9 @@
     "api/img.js": {
       "maxDuration": 10
     },
+    "api/og-image.js": {
+      "maxDuration": 15
+    },
     "api/cron-crawl-festivals.js": {
       "maxDuration": 60
     }

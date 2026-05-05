@@ -1772,17 +1772,63 @@ function renderEvents(){
     return;
   }
   el.innerHTML='';
+  // 14일 이내(soon) 우선, 부족하면 그 이후 행사로 채워 최대 8개 표시
+  // 이전엔 soon이 1건이면 1건만 표시되어 카운터(전체)와 불일치
   const soon=all.filter(e=>(e.d??999)<=14);
-  const list=(soon.length>0?soon:all).slice(0,8);
-  el.innerHTML= list.map((e,i)=>`
+  let list = soon.slice(0, 8);
+  if (list.length < 8) {
+    const seen = new Set(list.map(e => e.id));
+    for (const e of all) {
+      if (seen.has(e.id)) continue;
+      list.push(e);
+      if (list.length >= 8) break;
+    }
+  }
+  el.innerHTML= list.map((e,i)=>{
+    // 이미지 우선순위: 1) 데이터 자체 firstimage 2) 행사 url에서 og:image 자동 추출 (백엔드 프록시) 3) emoji
+    const ogProxy = (!e.image && e.url) ? `/api/og-image?url=${encodeURIComponent(e.url)}` : '';
+    const finalImg = e.image || ogProxy;
+    // og 프록시는 실패 시 1x1 투명 PNG 반환 → onerror 안 발동. 따라서 미리 렌더링 후 onload로 검증
+    const thumbStyle = finalImg
+      ? `background-image:url('${finalImg}');background-color:#f0f0f0;background-size:cover;background-position:center`
+      : `background:${e.bg}`;
+    const emojiOverlay = finalImg ? '' : e.emoji;
+    return `
     <div class="event-card" onclick="openEventDetail(${e.id})">
-      <div class="event-thumb" style="${e.image?`background-image:url('${e.image}');background-color:#f0f0f0`:`background:${e.bg}`}">${e.image?'':e.emoji}</div>
+      <div class="event-thumb" id="evtThumb${e.id}" style="${thumbStyle}">${emojiOverlay}</div>
       <div class="event-body">
         <div class="event-name">${e.name}${e.url?`<a href="${e.url}" target="_blank" onclick="event.stopPropagation()" style="margin-left:4px;color:#6C63FF;font-size:11px;text-decoration:none">↗</a>`:''}</div>
         <div class="event-date">${e.date}</div>
         <div class="event-loc">📍 ${e.loc}</div>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
+  // og-image 프록시가 1x1 투명 PNG(추출 실패)를 반환하면 카드에 emoji 폴백
+  list.forEach(e => {
+    if (e.image || !e.url) return;
+    const proxyUrl = `/api/og-image?url=${encodeURIComponent(e.url)}`;
+    const probe = new Image();
+    probe.onload = () => {
+      // 1x1 미만이면 추출 실패 — emoji 폴백
+      if (probe.naturalWidth <= 1 || probe.naturalHeight <= 1) {
+        const el = document.getElementById('evtThumb' + e.id);
+        if (el) {
+          el.style.backgroundImage = '';
+          el.style.background = e.bg;
+          el.textContent = e.emoji;
+        }
+      }
+    };
+    probe.onerror = () => {
+      const el = document.getElementById('evtThumb' + e.id);
+      if (el) {
+        el.style.backgroundImage = '';
+        el.style.background = e.bg;
+        el.textContent = e.emoji;
+      }
+    };
+    probe.src = proxyUrl;
+  });
 }
 
 // 나이대별 행사·팝업 적합도 점수 (음수 임계치 이하면 렌더링에서 제외)

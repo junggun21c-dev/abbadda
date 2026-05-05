@@ -382,9 +382,13 @@ export default async function handler(req, res) {
       .replace(/\s+/g, ' ').trim();
 
     // 다양한 한국어 일시 패턴 (광명 RSS 정규식 재사용)
+    // 안전 가드: 정규식 catastrophic backtracking 방지를 위해 입력 텍스트는 500자 이내로 제한.
     const extractDates = text => {
+      const safeText = (text || '').slice(0, 500);
+      const sanityOk = (mo, d) => mo >= 1 && mo <= 12 && d >= 1 && d <= 31;
+
       // 점 형식: "2026. 5. 5." 또는 "2026.5.5"
-      let m = text.match(/(\d{4})\.\s*(\d{1,2})\.\s*(\d{1,2})\.?[^~\n.]{0,30}?(?:[~∼]\s*(?:(\d{4})\.\s*)?(\d{1,2})\.\s*(\d{1,2})\.?)?/);
+      let m = safeText.match(/(\d{4})\.\s*(\d{1,2})\.\s*(\d{1,2})\.?[^~\n.]{0,30}?(?:[~∼]\s*(?:(\d{4})\.\s*)?(\d{1,2})\.\s*(\d{1,2})\.?)?/);
       if (m) {
         const sy = m[1], sm = m[2].padStart(2,'0'), sd = m[3].padStart(2,'0');
         const ey = m[4] || sy;
@@ -392,16 +396,45 @@ export default async function handler(req, res) {
         const ed = m[6] ? m[6].padStart(2,'0') : sd;
         return { start: `${sy}${sm}${sd}`, end: `${ey}${em}${ed}` };
       }
-      // 한국어: "2026년 5월 5일" 또는 "5월 5일 ~ 5월 10일"
-      m = text.match(/(\d{4})\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일[^~∼\-]*[~∼\-]\s*(?:(\d{4})\s*년\s*)?(\d{1,2})\s*월\s*(\d{1,2})\s*일/);
+      // 한국어 범위: "2026년 5월 5일 ~ 5월 10일"
+      // {0,30} 명시적 길이 제한으로 backtracking 방지
+      m = safeText.match(/(\d{4})\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일[^~∼\-]{0,30}[~∼\-]\s*(?:(\d{4})\s*년\s*)?(\d{1,2})\s*월\s*(\d{1,2})\s*일/);
       if (m) {
         const sy = m[1], sm = m[2].padStart(2,'0'), sd = m[3].padStart(2,'0');
         const ey = m[4] || sy, em = m[5].padStart(2,'0'), ed = m[6].padStart(2,'0');
         return { start: `${sy}${sm}${sd}`, end: `${ey}${em}${ed}` };
       }
-      m = text.match(/(\d{4})\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일/);
+      // 한국어 단일: "2026년 5월 5일"
+      m = safeText.match(/(\d{4})\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일/);
       if (m) {
         const d = `${m[1]}${m[2].padStart(2,'0')}${m[3].padStart(2,'0')}`;
+        return { start: d, end: d };
+      }
+      // === 연도 없는 패턴 (대구·광주 등 보강) ===
+      // greedy quantifier 없이 명시적·짧은 패턴만. catastrophic backtracking 차단.
+      const curY = new Date().getFullYear();
+      const tMon = new Date().getMonth() + 1;
+      const tDay = new Date().getDate();
+      const todayMd = tMon * 100 + tDay;
+
+      // "5월 5일 ~ 5월 10일" — 사이에 공백·물결만 허용 (광범위 [^...]* 미사용)
+      m = safeText.match(/(\d{1,2})\s*월\s*(\d{1,2})\s*일\s*[~∼\-]\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일/);
+      if (m) {
+        const sm = +m[1], sd = +m[2], em = +m[3], ed = +m[4];
+        if (!sanityOk(sm, sd) || !sanityOk(em, ed)) return null;
+        const y = (sm * 100 + sd) >= todayMd ? curY : curY + 1;
+        return {
+          start: `${y}${String(sm).padStart(2,'0')}${String(sd).padStart(2,'0')}`,
+          end:   `${y}${String(em).padStart(2,'0')}${String(ed).padStart(2,'0')}`,
+        };
+      }
+      // "5월 5일" 단일
+      m = safeText.match(/(\d{1,2})\s*월\s*(\d{1,2})\s*일/);
+      if (m) {
+        const sm = +m[1], sd = +m[2];
+        if (!sanityOk(sm, sd)) return null;
+        const y = (sm * 100 + sd) >= todayMd ? curY : curY + 1;
+        const d = `${y}${String(sm).padStart(2,'0')}${String(sd).padStart(2,'0')}`;
         return { start: d, end: d };
       }
       return null;

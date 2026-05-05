@@ -1756,8 +1756,9 @@ function renderEvents(){
     if(!e.endDateRaw) return 365;
     return Math.max(0, Math.ceil((new Date(e.endDateRaw)-today0)/86400000));
   };
-  // 위치 기반 우선: 거리 가까운 순 → 종료 임박순 → 시작 임박순. 좌표 없는 항목은 맨 뒤
-  const sortFn=(a,b)=>(a.distMin??9999)-(b.distMin??9999)||endUrgency(a)-endUrgency(b)||(a.d??999)-(b.d??999);
+  // 종료 임박 1차 + 거리 가까운 순 2차 + 시작 임박 3차
+  // 이전엔 거리 1차였는데, 비슷한 거리에서도 종료 임박 차이를 무시해 멀리 있는 종료 임박 안 된 행사가 위로
+  const sortFn=(a,b)=>endUrgency(a)-endUrgency(b)||(a.distMin??9999)-(b.distMin??9999)||(a.d??999)-(b.d??999);
   let all=getEventsByDist()
     .filter(e => curAges[0]===0 || calcAgeContentScore(e.name, curAges) > -2)
     .sort(sortFn);
@@ -1895,9 +1896,10 @@ function openEventAll(){
     const days = Math.ceil((new Date(e.endDateRaw) - today) / 86400000);
     return Math.max(0, days);
   };
-  // 위치 기반 우선: 거리 가까운 순 → 종료 임박순 → 자녀 적합순 → 시작 임박순
+  // 종료 임박 1차 + 거리 가까운 순 2차 + 자녀 적합 3차 + 시작 임박 4차
+  // (전체 보기에서 사용자는 임박한 행사부터 보고 싶어함. 거리는 같은 임박 안에서 보조)
   const all = EVENTS_DB.filter(e => !isAdultOnly(e) && isEventActive(e))
-    .sort((a,b) => (a.distMin??9999) - (b.distMin??9999) || endUrgency(a) - endUrgency(b) || childScore(a) - childScore(b) || (a.d??999) - (b.d??999));
+    .sort((a,b) => endUrgency(a) - endUrgency(b) || (a.distMin??9999) - (b.distMin??9999) || childScore(a) - childScore(b) || (a.d??999) - (b.d??999));
   let html=`<div class="sheet-title">📅 진행중 / 예정 행사</div><div style="font-size:12px;color:#aaa;margin-bottom:1rem">총 ${all.length}개 행사</div>`;
   all.forEach(e=>{
     const inRange=inDistRange(e.distMin);
@@ -1906,9 +1908,19 @@ function openEventAll(){
     const nameHtml = e.url
       ? `<a href="${e.url}" target="_blank" style="color:#222;text-decoration:none;font-weight:700">${e.name} <span style="font-size:11px;color:#6C63FF">↗</span></a> ${rangeBadge}`
       : `<span style="font-weight:700">${e.name}</span> ${rangeBadge}`;
+    // 메인 카드와 동일하게 og-image proxy로 자동 보강
+    const ogParams = [];
+    if (e.url) ogParams.push(`url=${encodeURIComponent(e.url)}`);
+    if (e.name) ogParams.push(`title=${encodeURIComponent(e.name)}`);
+    const ogProxy = (!e.image && ogParams.length) ? `/api/og-image?${ogParams.join('&')}` : '';
+    const finalImg = e.image || ogProxy;
+    const thumbStyle = finalImg
+      ? `background-image:url('${finalImg}');background-color:#f0f0f0;background-size:cover;background-position:center`
+      : `background:${e.bg}`;
+    const emojiOverlay = finalImg ? '' : e.emoji;
     html+=`<div class="event-full-card" ${cardClick} style="${e.url?'cursor:pointer':''}">
       <div class="efc-top">
-        <div class="efc-emoji" style="${e.image?`background-image:url('${e.image}');background-color:#f0f0f0`:`background:${e.bg}`}">${e.image?'':e.emoji}</div>
+        <div class="efc-emoji" id="efcThumb${e.id}" style="${thumbStyle}">${emojiOverlay}</div>
         <div class="efc-info">
           <div class="efc-name">${nameHtml}</div>
           <div class="efc-meta">📍 ${e.loc}</div>
@@ -1920,6 +1932,29 @@ function openEventAll(){
   });
   document.getElementById('eventModalContent').innerHTML=html;
   document.getElementById('eventModal').classList.add('open');
+  // og-image proxy가 1x1 투명 PNG(추출 실패) 반환하면 emoji 폴백
+  all.forEach(e => {
+    if (e.image) return;
+    const params = [];
+    if (e.url) params.push(`url=${encodeURIComponent(e.url)}`);
+    if (e.name) params.push(`title=${encodeURIComponent(e.name)}`);
+    if (!params.length) return;
+    const proxyUrl = `/api/og-image?${params.join('&')}`;
+    const probe = new Image();
+    const fallback = () => {
+      const el = document.getElementById('efcThumb' + e.id);
+      if (el) {
+        el.style.backgroundImage = '';
+        el.style.background = e.bg;
+        el.textContent = e.emoji;
+      }
+    };
+    probe.onload = () => {
+      if (probe.naturalWidth <= 1 || probe.naturalHeight <= 1) fallback();
+    };
+    probe.onerror = fallback;
+    probe.src = proxyUrl;
+  });
 }
 function closeEventModal(){document.getElementById('eventModal').classList.remove('open');}
 

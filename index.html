@@ -1785,8 +1785,14 @@ function renderEvents(){
     }
   }
   el.innerHTML= list.map((e,i)=>{
-    // 이미지 우선순위: 1) 데이터 자체 firstimage 2) 행사 url에서 og:image 자동 추출 (백엔드 프록시) 3) emoji
-    const ogProxy = (!e.image && e.url) ? `/api/og-image?url=${encodeURIComponent(e.url)}` : '';
+    // 이미지 우선순위: 1) 데이터 자체 firstimage 2) 행사 url에서 og:image 자동 추출 (백엔드 프록시)
+    //                 3) 네이버 이미지 검색(title) 4) emoji
+    // url 또는 title 둘 중 하나라도 있으면 og-image proxy 호출
+    const titleEnc = encodeURIComponent(e.name || '');
+    const ogParams = [];
+    if (e.url) ogParams.push(`url=${encodeURIComponent(e.url)}`);
+    if (e.name) ogParams.push(`title=${titleEnc}`);
+    const ogProxy = (!e.image && ogParams.length) ? `/api/og-image?${ogParams.join('&')}` : '';
     const finalImg = e.image || ogProxy;
     // og 프록시는 실패 시 1x1 투명 PNG 반환 → onerror 안 발동. 따라서 미리 렌더링 후 onload로 검증
     const thumbStyle = finalImg
@@ -1805,8 +1811,12 @@ function renderEvents(){
   }).join('');
   // og-image 프록시가 1x1 투명 PNG(추출 실패)를 반환하면 카드에 emoji 폴백
   list.forEach(e => {
-    if (e.image || !e.url) return;
-    const proxyUrl = `/api/og-image?url=${encodeURIComponent(e.url)}`;
+    if (e.image) return;
+    const params = [];
+    if (e.url) params.push(`url=${encodeURIComponent(e.url)}`);
+    if (e.name) params.push(`title=${encodeURIComponent(e.name)}`);
+    if (!params.length) return;
+    const proxyUrl = `/api/og-image?${params.join('&')}`;
     const probe = new Image();
     probe.onload = () => {
       // 1x1 미만이면 추출 실패 — emoji 폴백

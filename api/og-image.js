@@ -1,13 +1,13 @@
-// 외부 페이지의 og:image 자동 추출 + KV 캐시 + 이미지 binary stream
-// 사용: <img src="/api/og-image?url=https://news.gm.go.kr/news/articleView.html?idxno=24164">
-// 행사 카드의 firstimage가 비어있을 때 행사 link에서 대표 이미지를 자동 추출해 표시.
+// 외부 페이지의 og:image 자동 추출 + 네이버 이미지 검색 fallback + KV 캐시
+// 사용: <img src="/api/og-image?url=...&title=행사명">
+// 행사 카드의 firstimage가 비어있을 때 자동 추출해 표시.
 //
 // 흐름:
-// 1) ?url= 받음 (행사 detail 페이지 URL)
-// 2) KV에서 og-image:{md5} 캐시 확인 → 있으면 즉시 image stream
-// 3) 없으면 url fetch → og:image / twitter:image 추출
-// 4) 추출한 image URL을 fetch → binary stream (& KV에 image URL 저장, 7일)
-// 5) 추출 실패 시 KV에 NONE 저장(1일 TTL) → 410 + transparent 1x1 PNG
+// 1) ?url= + ?title= 받음
+// 2) KV에서 og-image:{key} 캐시 확인 → 있으면 즉시 image stream
+// 3) url 페이지에서 og:image / twitter:image 추출 시도
+// 4) 실패 시 → 네이버 이미지 검색 (NAVER_CLIENT_ID/SECRET 필요, title 사용)
+// 5) 모두 실패 → 1x1 transparent PNG (클라이언트가 emoji fallback)
 
 import { kvGet, kvSet } from './_kv.js';
 import { createHash } from 'crypto';
@@ -59,22 +59,58 @@ async function fetchImage(imageUrl) {
   return { ct, buf };
 }
 
+// 네이버 이미지 검색 — title로 행사 대표 이미지 검색 (og:image 없는 사이트 fallback)
+async function naverImageSearch(title) {
+  const id = process.env.NAVER_CLIENT_ID;
+  const secret = process.env.NAVER_CLIENT_SECRET;
+  if (!id || !secret || !title) return null;
+  try {
+    const q = encodeURIComponent(title);
+    const r = await fetch(`https://openapi.naver.com/v1/search/image?query=${q}&display=5&sort=sim`, {
+      headers: { 'X-Naver-Client-Id': id, 'X-Naver-Client-Secret': secret },
+    });
+    if (!r.ok) return null;
+    const data = await r.json();
+    const items = data.items || [];
+    // pstatic.net 썸네일이 호스트 안정적 (hotlink 차단 없음)
+    for (const it of items) {
+      if (it.thumbnail) return it.thumbnail;
+      if (it.link) return it.link;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  const { url } = req.query;
-  if (!url || typeof url !== 'string') return res.status(400).send('missing url');
+  const { url, title } = req.query;
+  if (!url && !title) return res.status(400).send('missing url or title');
 
-  let parsed;
-  try {
-    parsed = new URL(url);
-  } catch {
-    return res.status(400).send('invalid url');
+  let parsed = null;
+  if (url && typeof url === 'string') {
+    try {
+      parsed = new URL(url);
+      if (!/^https?:$/.test(parsed.protocol)) parsed = null;
+    } catch {}
   }
-  if (!/^https?:$/.test(parsed.protocol)) return res.status(400).send('invalid protocol');
 
-  const cacheKey = `og-image:${hash(url)}`;
+  // 캐시 키: url 우선, 없으면 title (같은 title은 같은 이미지 공유)
+  const cacheKey = `og-image:${hash(parsed ? url : `t:${title}`)}`;
+
+  const sendPng = (status, png) => {
+    const ttl = status === 200 ? 604800 : 86400;
+    res.setHeader('Cache-Control', `public, s-maxage=${ttl}`);
+    res.setHeader('Content-Type', 'image/png');
+    return res.status(200).send(png);
+  };
+  const failFallback = async (msg) => {
+    await kvSet(cacheKey, 'NONE', 86400).catch(() => {});
+    return sendPng(404, TRANSPARENT_PNG);
+  };
 
   // KV 캐시 조회
   let cachedImageUrl = null;
@@ -82,11 +118,7 @@ export default async function handler(req, res) {
     cachedImageUrl = await kvGet(cacheKey);
   } catch {}
 
-  if (cachedImageUrl === 'NONE') {
-    res.setHeader('Cache-Control', 'public, s-maxage=86400');
-    res.setHeader('Content-Type', 'image/png');
-    return res.status(200).send(TRANSPARENT_PNG);
-  }
+  if (cachedImageUrl === 'NONE') return sendPng(404, TRANSPARENT_PNG);
 
   // 캐시된 image URL이 있으면 그걸로 fetch
   if (cachedImageUrl && cachedImageUrl.startsWith('http')) {
@@ -99,45 +131,33 @@ export default async function handler(req, res) {
     // 캐시된 URL이 죽었으면 다시 추출 시도
   }
 
-  // 페이지 fetch + og:image 추출
-  try {
-    const pageResp = await fetch(url, {
-      headers: { 'User-Agent': UA },
-      redirect: 'follow',
-    });
-    if (!pageResp.ok) {
-      await kvSet(cacheKey, 'NONE', 86400).catch(() => {});
-      res.setHeader('Cache-Control', 'public, s-maxage=86400');
-      res.setHeader('Content-Type', 'image/png');
-      return res.status(200).send(TRANSPARENT_PNG);
-    }
-    const html = await pageResp.text();
-    const ogImageRaw = extractOgImage(html);
-    if (!ogImageRaw) {
-      await kvSet(cacheKey, 'NONE', 86400).catch(() => {});
-      res.setHeader('Cache-Control', 'public, s-maxage=86400');
-      res.setHeader('Content-Type', 'image/png');
-      return res.status(200).send(TRANSPARENT_PNG);
-    }
-    const ogImageUrl = resolveUrl(pageResp.url || url, ogImageRaw);
-
-    // 이미지 fetch 후 stream
-    const img = await fetchImage(ogImageUrl);
-    if (!img) {
-      await kvSet(cacheKey, 'NONE', 86400).catch(() => {});
-      res.setHeader('Cache-Control', 'public, s-maxage=86400');
-      res.setHeader('Content-Type', 'image/png');
-      return res.status(200).send(TRANSPARENT_PNG);
-    }
-    // 성공 → KV에 image URL 저장 (7일)
-    await kvSet(cacheKey, ogImageUrl, 7 * 86400).catch(() => {});
-    res.setHeader('Cache-Control', 'public, s-maxage=604800, stale-while-revalidate=86400');
-    res.setHeader('Content-Type', img.ct);
-    return res.status(200).send(img.buf);
-  } catch (e) {
-    await kvSet(cacheKey, 'NONE', 86400).catch(() => {});
-    res.setHeader('Cache-Control', 'public, s-maxage=300');
-    res.setHeader('Content-Type', 'image/png');
-    return res.status(200).send(TRANSPARENT_PNG);
+  // 1순위: url 페이지 og:image 추출
+  let candidateImageUrl = null;
+  if (parsed) {
+    try {
+      const pageResp = await fetch(url, { headers: { 'User-Agent': UA }, redirect: 'follow' });
+      if (pageResp.ok) {
+        const html = await pageResp.text();
+        const ogImageRaw = extractOgImage(html);
+        if (ogImageRaw) candidateImageUrl = resolveUrl(pageResp.url || url, ogImageRaw);
+      }
+    } catch {}
   }
+
+  // 2순위: 네이버 이미지 검색 (title 사용, NAVER 환경변수 필요)
+  if (!candidateImageUrl && title && typeof title === 'string') {
+    candidateImageUrl = await naverImageSearch(title);
+  }
+
+  if (!candidateImageUrl) return failFallback('no candidate');
+
+  // 이미지 fetch 후 stream
+  const img = await fetchImage(candidateImageUrl);
+  if (!img) return failFallback('image fetch failed');
+
+  // 성공 → KV에 image URL 저장 (7일)
+  await kvSet(cacheKey, candidateImageUrl, 7 * 86400).catch(() => {});
+  res.setHeader('Cache-Control', 'public, s-maxage=604800, stale-while-revalidate=86400');
+  res.setHeader('Content-Type', img.ct);
+  return res.status(200).send(img.buf);
 }

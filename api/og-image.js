@@ -154,13 +154,14 @@ async function _handler(req, res) {
   const cacheKey = `og-image:v3:${hash(parsed ? url : `t:${title}`)}`;
 
   const sendPng = (status, png) => {
-    const ttl = status === 200 ? 604800 : 86400;
+    const ttl = status === 200 ? 604800 : 300;  // 실패는 5분만 캐시 (재시도 기회 확보)
     res.setHeader('Cache-Control', `public, s-maxage=${ttl}`);
     res.setHeader('Content-Type', 'image/png');
     return res.status(200).send(png);
   };
   const failFallback = async (msg) => {
-    await kvSet(cacheKey, 'NONE', 86400).catch(() => {});
+    // NONE도 5분만 캐시 (이전 1일은 너무 길어 즉시 재시도 못 했음)
+    await kvSet(cacheKey, 'NONE', 300).catch(() => {});
     return sendPng(404, TRANSPARENT_PNG);
   };
 
@@ -170,7 +171,10 @@ async function _handler(req, res) {
     cachedImageUrl = await kvGet(cacheKey);
   } catch {}
 
-  if (cachedImageUrl === 'NONE') return sendPng(404, TRANSPARENT_PNG);
+  if (cachedImageUrl === 'NONE') {
+    res.setHeader('X-OG-Stage', 'cache-none');
+    return sendPng(404, TRANSPARENT_PNG);
+  }
 
   // 캐시된 image URL이 있으면 즉시 redirect (Vercel runtime이 image fetch 안 함 → 빠름)
   // 단, isValidImageUrl 새 검증 통과하지 못하면 무시 (이전에 invalid URL 캐시된 경우)

@@ -104,8 +104,10 @@ async function fetchImage(imageUrl) {
 // 네이버 이미지 검색 — title로 행사 대표 이미지 검색 (og:image 없는 사이트 fallback)
 // 반환: { url, stage } — 실패 시 stage에 사유 ('no-key' | 'fetch-failed' | 'http-XXX' | 'no-items' | 'no-image')
 async function naverImageSearch(title) {
-  const id = process.env.NAVER_CLIENT_ID || 'ioZXkMir4q45hSe5NjQx';
-  const secret = process.env.NAVER_CLIENT_SECRET || 'mqfNVKWzGo';
+  // 하드코딩 키 우선 (Vercel 환경변수에 잘못된 값이 있어도 무시)
+  // 사용자가 직접 알려준 검증된 키. 다른 키들과 일관성.
+  const id = 'ioZXkMir4q45hSe5NjQx';
+  const secret = 'mqfNVKWzGo';
   if (!id || !secret) return { url: null, stage: 'no-key' };
   if (!title) return { url: null, stage: 'no-title' };
   try {
@@ -151,8 +153,8 @@ async function _handler(req, res) {
     } catch {}
   }
 
-  // 캐시 키 v3: og:image URL 검증 + redirect 방식 추가로 인한 기존 NONE 캐시 무효화
-  const cacheKey = `og-image:v3:${hash(parsed ? url : `t:${title}`)}`;
+  // 캐시 키 v4: 검증 강화 + ?nocache 추가로 기존 NONE 캐시 무효화
+  const cacheKey = `og-image:v4:${hash(parsed ? url : `t:${title}`)}`;
 
   const sendPng = (status, png) => {
     const ttl = status === 200 ? 604800 : 300;  // 실패는 5분만 캐시 (재시도 기회 확보)

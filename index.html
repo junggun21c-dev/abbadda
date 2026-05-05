@@ -1350,7 +1350,14 @@ function buildEventsDB(rawItems) {
   const seen = new Set();
   return rawItems.filter(item => {
     if(seen.has(item.contentid)) return false;
-    seen.add(item.contentid); return true;
+    seen.add(item.contentid);
+    // 같은 축제가 다른 소스(gg_, fstvl_, busan_ 등)에서 중복 push되는 경우 제거
+    // 제목 공백 제거 + 시작일 매칭으로 통합
+    const normTitle = String(item.title || '').replace(/\s+/g, '');
+    const dedupKey = `dedup|${normTitle}|${item.eventstartdate || ''}`;
+    if(seen.has(dedupKey)) return false;
+    seen.add(dedupKey);
+    return true;
   }).map((item, i) => {
     const startDate = String(item.eventstartdate||'');
     const endDate = String(item.eventenddate||'');
@@ -1735,7 +1742,8 @@ function renderEvents(){
     if(!e.endDateRaw) return 365;
     return Math.max(0, Math.ceil((new Date(e.endDateRaw)-today0)/86400000));
   };
-  const sortFn=(a,b)=>endUrgency(a)-endUrgency(b)||(a.d??999)-(b.d??999);
+  // 위치 기반 우선: 거리 가까운 순 → 종료 임박순 → 시작 임박순. 좌표 없는 항목은 맨 뒤
+  const sortFn=(a,b)=>(a.distMin??9999)-(b.distMin??9999)||endUrgency(a)-endUrgency(b)||(a.d??999)-(b.d??999);
   let all=getEventsByDist()
     .filter(e => curAges[0]===0 || calcAgeContentScore(e.name, curAges) > -2)
     .sort(sortFn);
@@ -1817,8 +1825,9 @@ function openEventAll(){
     const days = Math.ceil((new Date(e.endDateRaw) - today) / 86400000);
     return Math.max(0, days);
   };
+  // 위치 기반 우선: 거리 가까운 순 → 종료 임박순 → 자녀 적합순 → 시작 임박순
   const all = EVENTS_DB.filter(e => !isAdultOnly(e) && isEventActive(e))
-    .sort((a,b) => endUrgency(a) - endUrgency(b) || childScore(a) - childScore(b) || (a.d??999) - (b.d??999));
+    .sort((a,b) => (a.distMin??9999) - (b.distMin??9999) || endUrgency(a) - endUrgency(b) || childScore(a) - childScore(b) || (a.d??999) - (b.d??999));
   let html=`<div class="sheet-title">📅 진행중 / 예정 행사</div><div style="font-size:12px;color:#aaa;margin-bottom:1rem">총 ${all.length}개 행사</div>`;
   all.forEach(e=>{
     const inRange=inDistRange(e.distMin);

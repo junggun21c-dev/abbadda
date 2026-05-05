@@ -1398,15 +1398,24 @@ function buildEventsDB(rawItems) {
   return result;
 }
 
-// 거주지 주소에서 시군명 추출 ("경기 광명시 오리로 835" → "광명시")
-// 네이버 검색에 사용하기 위함. 매칭 안 되면 빈 문자열.
+// 거주지 주소에서 네이버 검색용 시군명 추출
+// "경기 광명시 오리로 835" → "광명시"
+// "대전광역시 서구 둔산동" → "대전 서구" (광역시+자치구 조합으로 더 정확한 검색)
+// "충남 천안시" → "천안시"
 function extractSigunFromAddr(addr) {
   if (!addr || addr === '출발지 미설정') return '';
-  const m = addr.match(/[가-힣]+(?:시|군|구)/g);
-  if (!m) return '';
-  // "광명시 오리로" 같은 경우 첫 시·군·구 매칭. "구"는 광역시 자치구
-  // 광역시 자치구는 보통 "강남구" 같은 형식이라 그대로 사용
-  return m[0];
+  const tokens = addr.match(/[가-힣]+(?:특별시|광역시|특별자치시|특별자치도|도|시|군|구)/g);
+  if (!tokens) return '';
+  const sido = tokens.find(t => /(특별시|광역시|특별자치시|특별자치도|도)$/.test(t));
+  const sigun = tokens.find(t => /(시|군|구)$/.test(t) && t !== sido);
+  // 광역시·특별시·특별자치시 + 자치구 → "대전 서구" 형태 (네이버 검색에 더 정확)
+  if (sido && sigun && /(특별시|광역시|특별자치시)$/.test(sido)) {
+    return sido.replace(/특별시|광역시|특별자치시/, '') + ' ' + sigun;
+  }
+  // 도 + 시·군 → 시·군만 ("천안시", "광명시")
+  if (sigun) return sigun;
+  // fallback: 첫 토큰
+  return tokens[0];
 }
 
 async function loadEventsFromTourAPI() {

@@ -345,24 +345,35 @@ export default async function handler(req, res) {
       }
     } catch {}
 
-    // 2) 네이버 블로그 검색
-    const query = `${userSigun} 축제`;
-    let blogItems = [];
+    // 2) 네이버 블로그 검색 — 다양한 키워드로 결과 확장 (지방 사용자 데이터 부족 대응)
+    const queries = [
+      `${userSigun} 축제`,
+      `${userSigun} 행사`,
+      `${userSigun} 페스티벌`,
+    ];
+    const blogMap = new Map();
     try {
-      const url = `https://openapi.naver.com/v1/search/blog.json?query=${encodeURIComponent(query)}&display=20&sort=date`;
-      const resp = await fetch(url, {
-        headers: {
-          'X-Naver-Client-Id': naverId,
-          'X-Naver-Client-Secret': naverSecret,
-        },
-      });
-      if (!resp.ok) return;
-      const data = await resp.json();
-      blogItems = data.items || [];
+      const results = await Promise.all(queries.map(q =>
+        fetch(`https://openapi.naver.com/v1/search/blog.json?query=${encodeURIComponent(q)}&display=30&sort=date`, {
+          headers: {
+            'X-Naver-Client-Id': naverId,
+            'X-Naver-Client-Secret': naverSecret,
+          },
+        })
+        .then(r => r.ok ? r.json() : { items: [] })
+        .catch(() => ({ items: [] }))
+      ));
+      // 3개 검색 결과 합쳐 dedup (link 기준)
+      for (const data of results) {
+        for (const it of (data.items || [])) {
+          if (!blogMap.has(it.link)) blogMap.set(it.link, it);
+        }
+      }
     } catch (e) {
       console.warn('[events.js] naver blog fetch failed:', e.message);
       return;
     }
+    const blogItems = [...blogMap.values()];
 
     // 3) 정형 추출: HTML 태그·엔티티 제거 → 일시·장소 정규식
     const stripHtml = s => (s || '')
@@ -396,15 +407,19 @@ export default async function handler(req, res) {
       return null;
     };
 
+    // 사용자 거주 시군명을 토큰으로 분리 ("대전 서구" → ['대전','서구']). 모든 토큰 매칭되어야 통과
+    const sigunTokens = userSigun.split(/\s+/).filter(t => t.length >= 2);
     const newItems = [];
     for (const b of blogItems) {
       const title = stripHtml(b.title);
       const desc = stripHtml(b.description);
-      // 사용자 거주 시군명이 제목·내용에 들어가야 (다른 지역 노이즈 방지)
-      if (!title.includes(userSigun) && !desc.includes(userSigun)) continue;
-      // 행사 키워드 — 노이즈(위생점검·운영시간·일정 안내 등) 줄임
       const text = title + ' ' + desc;
-      if (!/축제|페스티벌|문화제|박람회|한마당|대축제/.test(text)) continue;
+      // 사용자 거주 시군의 모든 토큰이 제목·내용에 들어가야 (다른 지역 노이즈 방지)
+      // 예: "대전 서구"면 "대전"과 "서구" 모두 포함되어야
+      const allTokensMatch = sigunTokens.every(t => text.includes(t));
+      if (!allTokensMatch) continue;
+      // 행사 키워드 — 노이즈(위생점검·운영시간·일정 안내 등) 줄임
+      if (!/축제|페스티벌|문화제|박람회|한마당|대축제|페스타|페어/.test(text)) continue;
       // 점검·시즌 키워드 매칭은 제외 (행사 자체 아님)
       if (/위생\s*점검|단속|특별\s*점검|시즌\s*맞아/.test(text)) continue;
 

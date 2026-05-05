@@ -102,27 +102,28 @@ async function fetchImage(imageUrl) {
 }
 
 // 네이버 이미지 검색 — title로 행사 대표 이미지 검색 (og:image 없는 사이트 fallback)
+// 반환: { url, stage } — 실패 시 stage에 사유 ('no-key' | 'fetch-failed' | 'http-XXX' | 'no-items' | 'no-image')
 async function naverImageSearch(title) {
-  // 환경변수 우선, 없으면 하드코딩 fallback
   const id = process.env.NAVER_CLIENT_ID || 'ioZXkMir4q45hSe5NjQx';
   const secret = process.env.NAVER_CLIENT_SECRET || 'mqfNVKWzGo';
-  if (!id || !secret || !title) return null;
+  if (!id || !secret) return { url: null, stage: 'no-key' };
+  if (!title) return { url: null, stage: 'no-title' };
   try {
     const q = encodeURIComponent(title);
     const r = await fetch(`https://openapi.naver.com/v1/search/image?query=${q}&display=5&sort=sim`, {
       headers: { 'X-Naver-Client-Id': id, 'X-Naver-Client-Secret': secret },
     });
-    if (!r.ok) return null;
+    if (!r.ok) return { url: null, stage: `http-${r.status}` };
     const data = await r.json();
     const items = data.items || [];
-    // pstatic.net 썸네일이 호스트 안정적 (hotlink 차단 없음)
+    if (items.length === 0) return { url: null, stage: 'no-items' };
     for (const it of items) {
-      if (it.thumbnail) return it.thumbnail;
-      if (it.link) return it.link;
+      if (it.thumbnail) return { url: it.thumbnail, stage: 'thumbnail' };
+      if (it.link) return { url: it.link, stage: 'link' };
     }
-    return null;
-  } catch {
-    return null;
+    return { url: null, stage: 'no-image' };
+  } catch (e) {
+    return { url: null, stage: `fetch-failed:${(e && e.message || '').slice(0, 30)}` };
   }
 }
 
@@ -214,11 +215,11 @@ async function _handler(req, res) {
   // 2순위: 네이버 이미지 검색 (title 사용)
   if (!candidateImageUrl && title && typeof title === 'string') {
     const naver = await naverImageSearch(title);
-    if (naver) {
-      candidateImageUrl = naver;
-      stage = (stage ? stage + '+' : '') + 'naver';
+    if (naver.url) {
+      candidateImageUrl = naver.url;
+      stage = (stage ? stage + '+' : '') + 'naver:' + naver.stage;
     } else {
-      stage = (stage ? stage + '+' : '') + 'naver-failed';
+      stage = (stage ? stage + '+' : '') + 'naver-' + naver.stage;
     }
   }
 

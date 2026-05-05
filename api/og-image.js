@@ -26,13 +26,35 @@ function hash(s) {
 }
 
 // og:image content가 valid 이미지 URL인지 검증
-// 일부 사이트는 og:image content에 안내 텍스트 박아놓음 (예: "대표이미지주소(full_url):관리자등록권장")
+// 일부 사이트는 og:image content에 안내 텍스트 박아놓음 (예: "홈페이지주소/경로/파일이름")
+// 그게 IDNA 변환되면 xn-- punycode 도메인으로 들어옴
 function isValidImageUrl(s) {
   if (!s || typeof s !== 'string') return false;
   // 절대 URL 또는 protocol-relative URL만
   if (!/^(https?:)?\/\//i.test(s)) return false;
-  // 한국어 placeholder 키워드 거부
-  if (/관리자|등록|권장|예시|샘플|이미지주소|full_url|placeholder|example|your[-_]?image|이미지크기/i.test(s)) return false;
+  try {
+    const u = new URL(s.startsWith('//') ? 'https:' + s : s);
+    // 한국어 path는 placeholder 가능성 (보통 이미지 path는 영문/숫자)
+    // path를 percent-decode 후 한글 문자 비율이 높으면 거부
+    const decodedPath = decodeURIComponent(u.pathname || '');
+    if (/[가-힣]/.test(decodedPath)) {
+      // 한 글자라도 한글이 path에 있으면 placeholder 의심
+      // (정상 이미지 URL은 영문/숫자/_- 만 사용)
+      return false;
+    }
+    // Punycode 도메인 + 한글 변환 결과가 placeholder인 경우
+    if (u.hostname.startsWith('xn--')) {
+      try {
+        // 도메인 한글 디코드 — Node URL은 punycode 그대로 둠
+        // 한글 placeholder 키워드 식별을 위해 raw input도 검사
+        if (/홈페이지|예시|샘플|이미지주소|file|이미지[가-힣]/i.test(decodeURIComponent(s))) return false;
+      } catch {}
+    }
+    // 본 문자열에서 한국어 placeholder 키워드 거부
+    if (/관리자|등록|권장|예시|샘플|이미지주소|full_url|placeholder|example|your[-_]?image|이미지크기|홈페이지주소|경로|파일이름/i.test(s)) return false;
+  } catch {
+    return false;
+  }
   return true;
 }
 

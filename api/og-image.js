@@ -50,15 +50,19 @@ function resolveUrl(base, target) {
 }
 
 async function fetchImage(imageUrl) {
-  const r = await fetch(imageUrl, {
-    headers: { 'User-Agent': UA, Referer: imageUrl },
-    redirect: 'follow',
-  });
-  if (!r.ok) return null;
-  const ct = r.headers.get('content-type') || '';
-  if (!ct.startsWith('image/')) return null;
-  const buf = Buffer.from(await r.arrayBuffer());
-  return { ct, buf };
+  try {
+    const r = await fetch(imageUrl, {
+      headers: { 'User-Agent': UA, Referer: imageUrl },
+      redirect: 'follow',
+    });
+    if (!r.ok) return null;
+    const ct = r.headers.get('content-type') || '';
+    if (!ct.startsWith('image/')) return null;
+    const buf = Buffer.from(await r.arrayBuffer());
+    return { ct, buf };
+  } catch {
+    return null;
+  }
 }
 
 // 네이버 이미지 검색 — title로 행사 대표 이미지 검색 (og:image 없는 사이트 fallback)

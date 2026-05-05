@@ -87,6 +87,15 @@ async function naverImageSearch(title) {
 }
 
 export default async function handler(req, res) {
+  try {
+    return await _handler(req, res);
+  } catch (e) {
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    return res.status(500).send(`og-image error: ${e && e.message}\n${e && e.stack}`);
+  }
+}
+
+async function _handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   if (req.method === 'OPTIONS') return res.status(200).end();
 

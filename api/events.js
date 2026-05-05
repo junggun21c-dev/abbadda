@@ -97,7 +97,74 @@ export default async function handler(req, res) {
     } catch {}
   };
 
-  // ── 3) 전국문화축제표준데이터 (공공데이터포털 · 지자체 소규모 축제 보완) ──
+  // ── 부산 자체 API: USAGE_DAY_WEEK_AND_TIME 자유 텍스트 → YYYYMMDD 추출 ──
+  const parseBusanDate = (text) => {
+    if (!text) return null;
+    let m = text.match(/(\d{4})\.\s*(\d{1,2})\.?\s*(\d{1,2})\.?\s*[~∼\-]\s*(?:(\d{4})\.\s*)?(\d{1,2})\.?\s*(\d{1,2})/);
+    if (m) {
+      const sy = m[1], sm = m[2].padStart(2,'0'), sd = m[3].padStart(2,'0');
+      const ey = m[4] || sy, em = m[5].padStart(2,'0'), ed = m[6].padStart(2,'0');
+      return { startDate: `${sy}${sm}${sd}`, endDate: `${ey}${em}${ed}` };
+    }
+    m = text.match(/(\d{4})\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일[^~∼\-]*[~∼\-]\s*(?:(\d{4})\s*년\s*)?(\d{1,2})\s*월\s*(\d{1,2})\s*일/);
+    if (m) {
+      const sy = m[1], sm = m[2].padStart(2,'0'), sd = m[3].padStart(2,'0');
+      const ey = m[4] || sy, em = m[5].padStart(2,'0'), ed = m[6].padStart(2,'0');
+      return { startDate: `${sy}${sm}${sd}`, endDate: `${ey}${em}${ed}` };
+    }
+    m = text.match(/(\d{4})\.\s*(\d{1,2})\.\s*(\d{1,2})/);
+    if (m) {
+      const d = `${m[1]}${m[2].padStart(2,'0')}${m[3].padStart(2,'0')}`;
+      return { startDate: d, endDate: d };
+    }
+    m = text.match(/(\d{4})\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일/);
+    if (m) {
+      const d = `${m[1]}${m[2].padStart(2,'0')}${m[3].padStart(2,'0')}`;
+      return { startDate: d, endDate: d };
+    }
+    return null;
+  };
+
+  // ── 3) 부산광역시 부산축제정보 API (부산 areaCode=6 요청 시 보강) ──
+  const fetchBusan = async () => {
+    if (!codes.includes('6')) return;
+    try {
+      const url = `https://apis.data.go.kr/6260000/FestivalService/getFestivalKr?serviceKey=${TOUR_KEY}&pageNo=1&numOfRows=200&resultType=json`;
+      const resp = await fetch(url);
+      if (!resp.ok) return;
+      const data = await resp.json();
+      const items = data?.getFestivalKr?.item;
+      if (!items) return;
+      const arr = Array.isArray(items) ? items : [items];
+      for (const item of arr) {
+        const rawTitle = item.MAIN_TITLE || '';
+        const title = rawTitle.replace(/\s*\([\s가-힣,영중간번일]+\)\s*$/, '').trim();
+        if (!title) continue;
+        const dates = parseBusanDate(item.USAGE_DAY_WEEK_AND_TIME || '');
+        if (!dates) continue;
+        if (dates.endDate.length === 8 && dates.endDate < todayCompact) continue;
+        const key = 'busan_' + (item.UC_SEQ || title + dates.startDate);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        allItems.push({
+          title,
+          eventstartdate: dates.startDate,
+          eventenddate: dates.endDate,
+          addr1: (item.ADDR1 || `부산광역시 ${item.GUGUN_NM || ''} ${item.MAIN_PLACE || item.PLACE || ''}`).trim(),
+          mapy: item.LAT || null,
+          mapx: item.LNG || null,
+          contentid: key,
+          firstimage: item.MAIN_IMG_NORMAL || item.MAIN_IMG_THUMB || '',
+          url: item.HOMEPAGE_URL || '',
+          usefee: item.USAGE_AMOUNT || '',
+          usetimefestival: item.USAGE_DAY_WEEK_AND_TIME || '',
+          codename: '축제',
+        });
+      }
+    } catch {}
+  };
+
+  // ── 4) 전국문화축제표준데이터 (공공데이터포털 · 지자체 소규모 축제 보완) ──
   // 지역 필터 파라미터 미지원 → 전체 1,269건을 2페이지로 병렬 fetch, insttNm으로 지역 필터
   const fetchPublicFestival = async () => {
     const sidos = [...new Set(codes.map(c => AREA_TO_SIDO[c]).filter(Boolean))];
@@ -152,6 +219,8 @@ export default async function handler(req, res) {
     // 서울 포함 요청 시, 경기(31)가 없으면 추가
     if (codes.includes('1') && !tourCodes.includes('31')) tasks.push(fetchTour('31'));
     if (tasks.length === 0) tasks.push(fetchTour('1'));
+    // 부산 자체 API: 부산(areaCode=6) 포함 시 보강
+    tasks.push(fetchBusan());
     // 전국문화축제표준데이터: 요청 1회로 전체 fetch 후 지역 필터
     tasks.push(fetchPublicFestival());
     await Promise.all(tasks);

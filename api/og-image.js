@@ -137,15 +137,10 @@ async function _handler(req, res) {
 
   if (cachedImageUrl === 'NONE') return sendPng(404, TRANSPARENT_PNG);
 
-  // 캐시된 image URL이 있으면 그걸로 fetch
+  // 캐시된 image URL이 있으면 즉시 redirect (Vercel runtime이 image fetch 안 함 → 빠름)
   if (cachedImageUrl && cachedImageUrl.startsWith('http')) {
-    const img = await fetchImage(cachedImageUrl);
-    if (img) {
-      res.setHeader('Cache-Control', 'public, s-maxage=604800, stale-while-revalidate=86400');
-      res.setHeader('Content-Type', img.ct);
-      return res.status(200).send(img.buf);
-    }
-    // 캐시된 URL이 죽었으면 다시 추출 시도
+    res.setHeader('Cache-Control', 'public, s-maxage=604800, stale-while-revalidate=86400');
+    return res.redirect(302, cachedImageUrl);
   }
 
   // 1순위: url 페이지 og:image 추출
@@ -161,20 +156,16 @@ async function _handler(req, res) {
     } catch {}
   }
 
-  // 2순위: 네이버 이미지 검색 (title 사용, NAVER 환경변수 필요)
+  // 2순위: 네이버 이미지 검색 (title 사용)
   if (!candidateImageUrl && title && typeof title === 'string') {
     candidateImageUrl = await naverImageSearch(title);
   }
 
   if (!candidateImageUrl) return failFallback('no candidate');
 
-  // 이미지 fetch 후 stream
-  const img = await fetchImage(candidateImageUrl);
-  if (!img) return failFallback('image fetch failed');
-
-  // 성공 → KV에 image URL 저장 (7일)
+  // 성공 → KV에 image URL 저장 후 redirect (Vercel runtime은 image fetch 안 함)
+  // 이전엔 fetchImage로 binary stream했는데 일부 사이트 SSL 호환성 issue로 실패 → redirect로 회피
   await kvSet(cacheKey, candidateImageUrl, 7 * 86400).catch(() => {});
   res.setHeader('Cache-Control', 'public, s-maxage=604800, stale-while-revalidate=86400');
-  res.setHeader('Content-Type', img.ct);
-  return res.status(200).send(img.buf);
+  return res.redirect(302, candidateImageUrl);
 }

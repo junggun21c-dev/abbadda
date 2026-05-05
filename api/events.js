@@ -1,5 +1,5 @@
 // 시군청 보도자료 RSS 크롤 결과: KV(매일 cron 갱신) 우선, 정적 JSON fallback
-import { kvGet } from './_kv.js';
+import { kvGet, kvSet } from './_kv.js';
 
 let _SIGUN_DATA_CACHE = null;
 async function loadSigunData() {
@@ -45,8 +45,10 @@ export default async function handler(req, res) {
   const future = new Date(now); future.setDate(future.getDate() + 365);
   const endTo = future.toISOString().slice(0,10).replace(/-/g,'');
 
-  const { areaCodes } = req.query;
+  const { areaCodes, sigun } = req.query;
   const codes = (areaCodes || '1,31').split(',').map(s => s.trim()).filter(Boolean).slice(0, 8);
+  // 사용자 거주 시군명 (예: "광명시"). 프론트가 homeAddr에서 추출해 전달
+  const userSigun = (sigun || '').trim();
 
   // 지역코드 → 시도명 (공공데이터포털 표준데이터 필터용)
   const AREA_TO_SIDO = {
@@ -320,7 +322,125 @@ export default async function handler(req, res) {
     }
   };
 
-  // ── 7) 전국문화축제표준데이터 (공공데이터포털 · 지자체 소규모 축제 보완) ──
+  // ── 7) 네이버 블로그 검색 — 사용자 거주 시군의 신규 축제 자동 발견 (전국 226개 시군 커버) ──
+  // RSS·공공API에 없는 신규 축제를 포착. 결과는 KV에 24시간 캐시 (같은 시군 사용자는 첫 호출만 비용)
+  const fetchNaverBlog = async () => {
+    const naverId = process.env.NAVER_CLIENT_ID;
+    const naverSecret = process.env.NAVER_CLIENT_SECRET;
+    if (!naverId || !naverSecret || !userSigun) return;
+
+    const cacheKey = `naver-festivals:${userSigun}`;
+    // 1) KV 캐시 확인 (24시간)
+    try {
+      const cached = await kvGet(cacheKey);
+      if (cached) {
+        const arr = JSON.parse(cached);
+        for (const item of arr) {
+          if (seen.has(item.contentid)) continue;
+          seen.add(item.contentid);
+          allItems.push(item);
+        }
+        return;
+      }
+    } catch {}
+
+    // 2) 네이버 블로그 검색
+    const query = `${userSigun} 축제`;
+    let blogItems = [];
+    try {
+      const url = `https://openapi.naver.com/v1/search/blog.json?query=${encodeURIComponent(query)}&display=20&sort=date`;
+      const resp = await fetch(url, {
+        headers: {
+          'X-Naver-Client-Id': naverId,
+          'X-Naver-Client-Secret': naverSecret,
+        },
+      });
+      if (!resp.ok) return;
+      const data = await resp.json();
+      blogItems = data.items || [];
+    } catch (e) {
+      console.warn('[events.js] naver blog fetch failed:', e.message);
+      return;
+    }
+
+    // 3) 정형 추출: HTML 태그·엔티티 제거 → 일시·장소 정규식
+    const stripHtml = s => (s || '')
+      .replace(/<[^>]+>/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ')
+      .replace(/\s+/g, ' ').trim();
+
+    // 다양한 한국어 일시 패턴 (광명 RSS 정규식 재사용)
+    const extractDates = text => {
+      // 점 형식: "2026. 5. 5." 또는 "2026.5.5"
+      let m = text.match(/(\d{4})\.\s*(\d{1,2})\.\s*(\d{1,2})\.?[^~\n.]{0,30}?(?:[~∼]\s*(?:(\d{4})\.\s*)?(\d{1,2})\.\s*(\d{1,2})\.?)?/);
+      if (m) {
+        const sy = m[1], sm = m[2].padStart(2,'0'), sd = m[3].padStart(2,'0');
+        const ey = m[4] || sy;
+        const em = m[5] ? m[5].padStart(2,'0') : sm;
+        const ed = m[6] ? m[6].padStart(2,'0') : sd;
+        return { start: `${sy}${sm}${sd}`, end: `${ey}${em}${ed}` };
+      }
+      // 한국어: "2026년 5월 5일" 또는 "5월 5일 ~ 5월 10일"
+      m = text.match(/(\d{4})\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일[^~∼\-]*[~∼\-]\s*(?:(\d{4})\s*년\s*)?(\d{1,2})\s*월\s*(\d{1,2})\s*일/);
+      if (m) {
+        const sy = m[1], sm = m[2].padStart(2,'0'), sd = m[3].padStart(2,'0');
+        const ey = m[4] || sy, em = m[5].padStart(2,'0'), ed = m[6].padStart(2,'0');
+        return { start: `${sy}${sm}${sd}`, end: `${ey}${em}${ed}` };
+      }
+      m = text.match(/(\d{4})\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일/);
+      if (m) {
+        const d = `${m[1]}${m[2].padStart(2,'0')}${m[3].padStart(2,'0')}`;
+        return { start: d, end: d };
+      }
+      return null;
+    };
+
+    const newItems = [];
+    for (const b of blogItems) {
+      const title = stripHtml(b.title);
+      const desc = stripHtml(b.description);
+      // 사용자 거주 시군명이 제목·내용에 들어가야 (다른 지역 노이즈 방지)
+      if (!title.includes(userSigun) && !desc.includes(userSigun)) continue;
+      // 행사 키워드 — 노이즈(위생점검·운영시간·일정 안내 등) 줄임
+      const text = title + ' ' + desc;
+      if (!/축제|페스티벌|문화제|박람회|한마당|대축제/.test(text)) continue;
+      // 점검·시즌 키워드 매칭은 제외 (행사 자체 아님)
+      if (/위생\s*점검|단속|특별\s*점검|시즌\s*맞아/.test(text)) continue;
+
+      const dates = extractDates(text);
+      if (!dates) continue;
+      if (dates.end < todayCompact) continue;
+
+      const link = b.link || '';
+      const key = 'naver_' + title.slice(0, 20) + dates.start;
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      const item = {
+        title,
+        eventstartdate: dates.start,
+        eventenddate: dates.end,
+        addr1: `${userSigun}`,
+        mapy: null,  // 좌표 없음 — frontend의 거리 정렬에서 distMin null 허용
+        mapx: null,
+        contentid: key,
+        firstimage: '',  // 블로그 검색은 썸네일 미제공
+        url: link,
+        usefee: '',
+        usetimefestival: '',
+        codename: '축제',
+      };
+      newItems.push(item);
+      allItems.push(item);
+    }
+
+    // 4) KV에 24시간 저장 (같은 시군 사용자 공유)
+    try {
+      await kvSet(cacheKey, JSON.stringify(newItems), 86400);
+    } catch {}
+  };
+
+  // ── 8) 전국문화축제표준데이터 (공공데이터포털 · 지자체 소규모 축제 보완) ──
   // 지역 필터 파라미터 미지원 → 전체 1,269건을 2페이지로 병렬 fetch, insttNm으로 지역 필터
   const fetchPublicFestival = async () => {
     const sidos = [...new Set(codes.map(c => AREA_TO_SIDO[c]).filter(Boolean))];
@@ -383,6 +503,8 @@ export default async function handler(req, res) {
     tasks.push(fetchGyeonggi());
     // 시군청 보도자료 RSS 크롤 (정적 JSON, 가장 신선)
     tasks.push(fetchSigunRss());
+    // 네이버 블로그 검색: 사용자 거주 시군의 신규 축제 (전국 226개 시군 커버)
+    tasks.push(fetchNaverBlog());
     // 전국문화축제표준데이터: 요청 1회로 전체 fetch 후 지역 필터
     tasks.push(fetchPublicFestival());
     await Promise.all(tasks);

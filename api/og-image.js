@@ -173,9 +173,15 @@ async function _handler(req, res) {
   if (cachedImageUrl === 'NONE') return sendPng(404, TRANSPARENT_PNG);
 
   // 캐시된 image URL이 있으면 즉시 redirect (Vercel runtime이 image fetch 안 함 → 빠름)
+  // 단, isValidImageUrl 새 검증 통과하지 못하면 무시 (이전에 invalid URL 캐시된 경우)
   if (cachedImageUrl && cachedImageUrl.startsWith('http')) {
-    res.setHeader('Cache-Control', 'public, s-maxage=604800, stale-while-revalidate=86400');
-    return res.redirect(302, cachedImageUrl);
+    if (isValidImageUrl(cachedImageUrl)) {
+      res.setHeader('Cache-Control', 'public, s-maxage=604800, stale-while-revalidate=86400');
+      res.setHeader('X-OG-Stage', 'cache');
+      return res.redirect(302, cachedImageUrl);
+    }
+    // invalid 캐시 → 재추출 진행
+    cachedImageUrl = null;
   }
 
   // 1순위: url 페이지 og:image 추출

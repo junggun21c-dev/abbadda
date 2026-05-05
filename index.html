@@ -1412,6 +1412,10 @@ function extractSigunFromAddr(addr) {
   if (sido && sigun && /(특별시|광역시|특별자치시)$/.test(sido)) {
     return sido.replace(/특별시|광역시|특별자치시/, '') + ' ' + sigun;
   }
+  // 광역시만 입력 (자치구 없음) → "대전" 짧은 형태로 검색 폭 확대
+  if (sido && /(특별시|광역시|특별자치시)$/.test(sido)) {
+    return sido.replace(/특별시|광역시|특별자치시/, '');
+  }
   // 도 + 시·군 → 시·군만 ("천안시", "광명시")
   if (sigun) return sigun;
   // fallback: 첫 토큰

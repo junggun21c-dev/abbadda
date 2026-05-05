@@ -407,17 +407,17 @@ export default async function handler(req, res) {
       return null;
     };
 
-    // 사용자 거주 시군명을 토큰으로 분리 ("대전 서구" → ['대전','서구']). 모든 토큰 매칭되어야 통과
+    // 사용자 거주 시군명 토큰 분리 ("대전 서구" → ['대전','서구'])
+    // 첫 토큰(광역시·도·시·군)만 필수 매칭 — 자치구까지 정확히 매칭하면 결과 0건 가능성
     const sigunTokens = userSigun.split(/\s+/).filter(t => t.length >= 2);
+    const requiredToken = sigunTokens[0] || userSigun;
     const newItems = [];
     for (const b of blogItems) {
       const title = stripHtml(b.title);
       const desc = stripHtml(b.description);
       const text = title + ' ' + desc;
-      // 사용자 거주 시군의 모든 토큰이 제목·내용에 들어가야 (다른 지역 노이즈 방지)
-      // 예: "대전 서구"면 "대전"과 "서구" 모두 포함되어야
-      const allTokensMatch = sigunTokens.every(t => text.includes(t));
-      if (!allTokensMatch) continue;
+      // 첫 토큰만 매칭 (예: "대전 서구" 사용자라도 '대전' 들어간 모든 결과 통과)
+      if (!text.includes(requiredToken)) continue;
       // 행사 키워드 — 노이즈(위생점검·운영시간·일정 안내 등) 줄임
       if (!/축제|페스티벌|문화제|박람회|한마당|대축제|페스타|페어/.test(text)) continue;
       // 점검·시즌 키워드 매칭은 제외 (행사 자체 아님)

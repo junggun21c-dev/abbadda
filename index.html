@@ -1795,14 +1795,15 @@ function renderEvents(){
     if (e.name) ogParams.push(`title=${titleEnc}`);
     const ogProxy = (!e.image && ogParams.length) ? `/api/og-image?${ogParams.join('&')}` : '';
     const finalImg = e.image || ogProxy;
-    // og 프록시는 실패 시 1x1 투명 PNG 반환 → onerror 안 발동. 따라서 미리 렌더링 후 onload로 검증
+    // 이미지 깔리는 동안 emoji 숨김. 로드 실패·1x1 PNG 시 JS가 emoji 다시 표시.
+    // background:e.bg를 항상 깔아두어 이미지 깨져도 회색이 아닌 카드 색상 유지.
     const thumbStyle = finalImg
-      ? `background-image:url('${finalImg}');background-color:#f0f0f0;background-size:cover;background-position:center`
+      ? `background:${e.bg};background-image:url('${finalImg}');background-size:cover;background-position:center`
       : `background:${e.bg}`;
-    const emojiOverlay = finalImg ? '' : e.emoji;
+    const emojiDisplay = finalImg ? 'none' : 'inline-block';
     return `
     <div class="event-card" onclick="openEventDetail(${e.id})">
-      <div class="event-thumb" id="evtThumb${e.id}" style="${thumbStyle}">${emojiOverlay}</div>
+      <div class="event-thumb" id="evtThumb${e.id}" style="${thumbStyle}"><span class="evt-emoji-overlay" style="display:${emojiDisplay}">${e.emoji}</span></div>
       <div class="event-body">
         <div class="event-name">${e.name}${e.url?`<a href="${e.url}" target="_blank" onclick="event.stopPropagation()" style="margin-left:4px;color:#6C63FF;font-size:11px;text-decoration:none">↗</a>`:''}</div>
         <div class="event-date">${e.date}</div>
@@ -1810,35 +1811,27 @@ function renderEvents(){
       </div>
     </div>`;
   }).join('');
-  // og-image 프록시가 1x1 투명 PNG(추출 실패)를 반환하면 카드에 emoji 폴백
+  // 이미지 로드 검증: e.image든 og-image proxy든 모두 검증 (broken URL · 1x1 PNG → emoji 폴백)
   list.forEach(e => {
-    if (e.image) return;
     const params = [];
     if (e.url) params.push(`url=${encodeURIComponent(e.url)}`);
     if (e.name) params.push(`title=${encodeURIComponent(e.name)}`);
-    if (!params.length) return;
-    const proxyUrl = `/api/og-image?${params.join('&')}`;
+    const ogProxy = (!e.image && params.length) ? `/api/og-image?${params.join('&')}` : '';
+    const imgUrl = e.image || ogProxy;
+    if (!imgUrl) return;
     const probe = new Image();
-    probe.onload = () => {
-      // 1x1 미만이면 추출 실패 — emoji 폴백
-      if (probe.naturalWidth <= 1 || probe.naturalHeight <= 1) {
-        const el = document.getElementById('evtThumb' + e.id);
-        if (el) {
-          el.style.backgroundImage = '';
-          el.style.background = e.bg;
-          el.textContent = e.emoji;
-        }
-      }
-    };
-    probe.onerror = () => {
+    const showEmoji = () => {
       const el = document.getElementById('evtThumb' + e.id);
-      if (el) {
-        el.style.backgroundImage = '';
-        el.style.background = e.bg;
-        el.textContent = e.emoji;
-      }
+      if (!el) return;
+      el.style.backgroundImage = '';
+      const span = el.querySelector('.evt-emoji-overlay');
+      if (span) span.style.display = 'inline-block';
     };
-    probe.src = proxyUrl;
+    probe.onload = () => {
+      if (probe.naturalWidth <= 1 || probe.naturalHeight <= 1) showEmoji();
+    };
+    probe.onerror = showEmoji;
+    probe.src = imgUrl;
   });
 }
 
@@ -1915,12 +1908,12 @@ function openEventAll(){
     const ogProxy = (!e.image && ogParams.length) ? `/api/og-image?${ogParams.join('&')}` : '';
     const finalImg = e.image || ogProxy;
     const thumbStyle = finalImg
-      ? `background-image:url('${finalImg}');background-color:#f0f0f0;background-size:cover;background-position:center`
+      ? `background:${e.bg};background-image:url('${finalImg}');background-size:cover;background-position:center`
       : `background:${e.bg}`;
-    const emojiOverlay = finalImg ? '' : e.emoji;
+    const emojiDisplay = finalImg ? 'none' : 'inline-block';
     html+=`<div class="event-full-card" ${cardClick} style="${e.url?'cursor:pointer':''}">
       <div class="efc-top">
-        <div class="efc-emoji" id="efcThumb${e.id}" style="${thumbStyle}">${emojiOverlay}</div>
+        <div class="efc-emoji" id="efcThumb${e.id}" style="${thumbStyle}"><span class="efc-emoji-overlay" style="display:${emojiDisplay}">${e.emoji}</span></div>
         <div class="efc-info">
           <div class="efc-name">${nameHtml}</div>
           <div class="efc-meta">📍 ${e.loc}</div>
@@ -1932,28 +1925,27 @@ function openEventAll(){
   });
   document.getElementById('eventModalContent').innerHTML=html;
   document.getElementById('eventModal').classList.add('open');
-  // og-image proxy가 1x1 투명 PNG(추출 실패) 반환하면 emoji 폴백
+  // 모든 카드 이미지 검증 (e.image든 og-image proxy든)
   all.forEach(e => {
-    if (e.image) return;
     const params = [];
     if (e.url) params.push(`url=${encodeURIComponent(e.url)}`);
     if (e.name) params.push(`title=${encodeURIComponent(e.name)}`);
-    if (!params.length) return;
-    const proxyUrl = `/api/og-image?${params.join('&')}`;
+    const ogProxy = (!e.image && params.length) ? `/api/og-image?${params.join('&')}` : '';
+    const imgUrl = e.image || ogProxy;
+    if (!imgUrl) return;
     const probe = new Image();
-    const fallback = () => {
+    const showEmoji = () => {
       const el = document.getElementById('efcThumb' + e.id);
-      if (el) {
-        el.style.backgroundImage = '';
-        el.style.background = e.bg;
-        el.textContent = e.emoji;
-      }
+      if (!el) return;
+      el.style.backgroundImage = '';
+      const span = el.querySelector('.efc-emoji-overlay');
+      if (span) span.style.display = 'inline-block';
     };
     probe.onload = () => {
-      if (probe.naturalWidth <= 1 || probe.naturalHeight <= 1) fallback();
+      if (probe.naturalWidth <= 1 || probe.naturalHeight <= 1) showEmoji();
     };
-    probe.onerror = fallback;
-    probe.src = proxyUrl;
+    probe.onerror = showEmoji;
+    probe.src = imgUrl;
   });
 }
 function closeEventModal(){document.getElementById('eventModal').classList.remove('open');}

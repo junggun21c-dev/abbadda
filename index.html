@@ -1348,20 +1348,23 @@ function buildEventsDB(rawItems) {
   const today = new Date();
   const todayStr = today.toISOString().slice(0,10).replace(/-/g,'');
   const seen = new Set();
-  return rawItems.filter(item => {
-    if(seen.has(item.contentid)) return false;
+  const _dbgRaw = rawItems.length;
+  let _dbgDuplicate = 0, _dbgEnded = 0;
+  const _filtered = rawItems.filter(item => {
+    if(seen.has(item.contentid)) { _dbgDuplicate++; return false; }
     seen.add(item.contentid);
     // 같은 축제가 다른 소스(gg_, fstvl_, busan_ 등)에서 중복 push되는 경우 제거
     // 제목 공백 제거 + 시작일 매칭으로 통합
     const normTitle = String(item.title || '').replace(/\s+/g, '');
     const dedupKey = `dedup|${normTitle}|${item.eventstartdate || ''}`;
-    if(seen.has(dedupKey)) return false;
+    if(seen.has(dedupKey)) { _dbgDuplicate++; return false; }
     seen.add(dedupKey);
     return true;
-  }).map((item, i) => {
+  });
+  const result = _filtered.map((item, i) => {
     const startDate = String(item.eventstartdate||'');
     const endDate = String(item.eventenddate||'');
-    if(endDate.length===8 && endDate < todayStr) return null;
+    if(endDate.length===8 && endDate < todayStr) { _dbgEnded++; return null; }
     const startFmt = startDate.length===8 ? `${startDate.slice(4,6)}/${startDate.slice(6,8)}` : '';
     const endFmt = endDate.length===8 ? `${endDate.slice(4,6)}/${endDate.slice(6,8)}` : '';
     const dateStr = startFmt && endFmt ? `${startFmt} - ${endFmt}` : startFmt;
@@ -1391,6 +1394,8 @@ function buildEventsDB(rawItems) {
       isDDP: !!item.isDDP
     };
   }).filter(Boolean);
+  console.log(`[buildEventsDB] raw=${_dbgRaw} → 중복제거=${_dbgRaw - _dbgDuplicate} → 종료제외=${_dbgRaw - _dbgDuplicate - _dbgEnded} (dup=${_dbgDuplicate}, ended=${_dbgEnded})`);
+  return result;
 }
 
 // 거주지 주소에서 시군명 추출 ("경기 광명시 오리로 835" → "광명시")
@@ -1428,6 +1433,17 @@ async function loadEventsFromTourAPI() {
     const data = await resp.json();
     let allItems = data.items || [];
     console.log('[행사] 응답 items 수:', allItems.length);
+    // 디버그: prefix 분포 + 천안 샘플
+    if (allItems.length > 0) {
+      const dist = {};
+      for (const it of allItems) {
+        const cid = String(it.contentid || '');
+        const pre = cid.includes('_') ? cid.split('_')[0] + '_' : 'tour';
+        dist[pre] = (dist[pre] || 0) + 1;
+      }
+      console.log('[행사] prefix 분포:', dist);
+      console.log('[행사] 첫 5건:', allItems.slice(0, 5).map(i => ({ title: i.title, addr: i.addr1, end: i.eventenddate, contentid: i.contentid })));
+    }
 
     if(allItems.length > 0) {
       setEventsCache(cacheKey, allItems); // 성공 시 캐시 갱신 (sigun 포함 키)
@@ -1759,9 +1775,15 @@ function renderEvents(){
   // 종료 임박 1차 + 거리 가까운 순 2차 + 시작 임박 3차
   // 이전엔 거리 1차였는데, 비슷한 거리에서도 종료 임박 차이를 무시해 멀리 있는 종료 임박 안 된 행사가 위로
   const sortFn=(a,b)=>endUrgency(a)-endUrgency(b)||(a.distMin??9999)-(b.distMin??9999)||(a.d??999)-(b.d??999);
+  // 디버그: 단계별 필터링 손실 추적
+  const _dbg0 = EVENTS_DB.length;
+  const _dbg1 = EVENTS_DB.filter(isEventActive).length;
+  const _dbg2 = EVENTS_DB.filter(isEventActive).filter(e => inDistRange(e.distMin)).length;
+  const _dbg3 = EVENTS_DB.filter(isEventActive).filter(e => inDistRange(e.distMin)).filter(e => !EVENT_BLACKLIST.some(kw=>(e.name||'').includes(kw))).length;
   let all=getEventsByDist()
     .filter(e => curAges[0]===0 || calcAgeContentScore(e.name, curAges) > -2)
     .sort(sortFn);
+  console.log(`[renderEvents] EVENTS_DB=${_dbg0} → 진행중=${_dbg1} → 거리범위(distMin=${distMin},Max=${distMax})=${_dbg2} → 블랙리스트=${_dbg3} → 카테고리/나이=${all.length} | userLat=${userLat},userLng=${userLng} | catVal=${catVal}`);
   document.getElementById('eventBadge').textContent=`${all.length}`;
   const el=document.getElementById('eventList');
   if(!all.length){

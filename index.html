@@ -3259,12 +3259,24 @@ function openPopupDetail(id){
 
 function openPopupAll(){
   const today=new Date(); today.setHours(0,0,0,0);
-  const active=POPUPS_DB.filter(p=>!p.endDateRaw||new Date(p.endDateRaw)>=today);
+  const endUrgencyP = p => {
+    if(!p.endDateRaw) return 365;
+    return Math.max(0, Math.ceil((new Date(p.endDateRaw)-today)/86400000));
+  };
+  // 거주지 매칭 + 종료된 것 제외 + 종료 임박 1차 + 거리 가까운 순 2차
+  // 이전엔 모든 팝업 표시되어 충남 사용자에게 서울 성동구 팝업이 잔뜩 나오던 문제
+  const active=POPUPS_DB
+    .filter(p=>!p.endDateRaw||new Date(p.endDateRaw)>=today)
+    .filter(p=>popupMatchesHomeRegion(p))
+    .sort((a,b)=>endUrgencyP(a)-endUrgencyP(b)||(a.distMin||120)-(b.distMin||120));
   let html=`<div class="sheet-title">🎪 진행중 / 예정 팝업</div><div style="font-size:12px;color:#aaa;margin-bottom:0.6rem">총 ${active.length}개 팝업</div>
     <div style="font-size:11px;color:#888;background:#F8F7F5;border-radius:8px;padding:8px 12px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:8px">
       <span>정보 출처: <strong style="color:#666">Popply.co.kr</strong></span>
       <a href="https://popply.co.kr" target="_blank" rel="noopener" style="color:#6C63FF;font-weight:600;text-decoration:none;font-size:11px;white-space:nowrap">사이트 방문 →</a>
     </div>`;
+  if (!active.length) {
+    html += `<div style="font-size:13px;color:#aaa;padding:24px 8px;text-align:center;line-height:1.6">현재 거주지 인근 팝업이 없어요 😅<br><span style="font-size:11px">팝업스토어는 대부분 서울에 있어요</span></div>`;
+  }
   active.forEach(p=>{
     const inRange=!p.distMin||inDistRange(p.distMin);
     const nameHtml=p.url
@@ -3272,7 +3284,7 @@ function openPopupAll(){
       :`${p.name} ${inRange?'<span style="background:#EAFAF0;color:#187A3D;font-size:9px;padding:1px 6px;border-radius:6px;font-weight:700">범위 내</span>':''}`;
     html+=`<div class="event-full-card">
       <div class="efc-top">
-        <div class="efc-emoji" style="${p.image?`background-image:url('${p.image}');background-color:#f0f0f0`:`background:${p.bg}`}">${p.image?'':p.emoji}</div>
+        <div class="efc-emoji" style="${p.image?`background:${p.bg};background-image:url('${p.image}');background-size:cover;background-position:center`:`background:${p.bg}`}"><span class="popup-emoji-overlay" style="display:${p.image?'none':'inline-block'}">${p.emoji}</span></div>
         <div class="efc-info">
           <div class="efc-name">${nameHtml}</div>
           <div class="efc-meta">📍 ${p.loc}</div>

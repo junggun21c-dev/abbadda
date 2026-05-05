@@ -2320,7 +2320,8 @@ async function renderCourseMap(c){
   if(!loaded){box.innerHTML='<span style="color:#aaa;font-size:13px">지도를 불러올 수 없어요</span>';return;}
   box.innerHTML='';box.style.display='block';
   try{
-    const cLat=c.destLat||37.5665, cLng=c.destLng||126.9780;
+    // 정적 코스에 destLat 없으면 사용자 거주지 우선, 그것도 없을 때만 서울시청
+    const cLat=c.destLat||(userLat||37.5665), cLng=c.destLng||(userLng||126.9780);
     const center=new kakao.maps.LatLng(cLat,cLng);
     const map=new kakao.maps.Map(box,{center,level:7});
     const bounds=new kakao.maps.LatLngBounds();
@@ -2394,8 +2395,9 @@ async function changeStep(stepIdx){
   const loaded = await loadKakaoSDK();
   if(!loaded){ hideCenterLoading(); if(btn){btn.disabled=false;btn.textContent='🔄 변경';} showToast('지도 SDK를 불러올 수 없어요'); return; }
 
-  const searchLat = s.lat || c.destLat || 37.5665;
-  const searchLng = s.lng || c.destLng || 126.9780;
+  // 변경 검색 기준 좌표: 스텝 → 코스 목적지 → 사용자 거주지 → 서울시청 (마지막)
+  const searchLat = s.lat || c.destLat || userLat || 37.5665;
+  const searchLng = s.lng || c.destLng || userLng || 126.9780;
 
   // 히스토리 키: 코스ID + 스텝인덱스
   const histKey = `${c.id}_${stepIdx}`;
@@ -3199,8 +3201,12 @@ async function buildCourseWithPopup(popupId){
   if(!p) return;
   showToast('주변 맛집/카페 검색 중... 🔍');
 
-  // 팝업 좌표 (POPUPS_DB에 lat/lng 있으면 사용, 없으면 Seoul 기본값)
-  const pCoords={lat:p.lat||37.5665, lng:p.lng||126.9780};
+  // 팝업 좌표: 자체 → 사용자 거주지 → 서울시청 (last resort)
+  // 이전엔 p.lat 없으면 무조건 서울시청이라 비수도권 사용자에게도 서울 식당이 추천됨
+  const pCoords={
+    lat: p.lat || userLat || 37.5665,
+    lng: p.lng || userLng || 126.9780,
+  };
   // 지도 렌더링을 위해 PLACE_COORDS에 팝업 위치 등록
   PLACE_COORDS[p.name]=pCoords;
 

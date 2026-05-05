@@ -299,7 +299,7 @@ export default async function handler(req, res) {
         mapy: it.mapy || null,
         mapx: it.mapx || null,
         contentid: key,
-        firstimage: '',
+        firstimage: it.firstimage || '',
         url: it.link || '',
         usefee: '',
         usetimefestival: '',

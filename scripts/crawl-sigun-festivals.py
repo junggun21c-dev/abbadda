@@ -107,6 +107,16 @@ def get_article_body(html: str, fallback_desc: str) -> str:
     end = start + (end_match.start() if end_match else 10000)
     return text_only(html[start:end])
 
+def extract_og_image(html: str):
+    """og:image 메타태그에서 대표 이미지 URL 추출"""
+    # property가 앞에 오는 경우
+    m = re.search(r'property=["\']og:image["\'][^>]*content=["\']([^"\']+)["\']', html)
+    if m: return m.group(1)
+    # content가 앞에 오는 경우
+    m = re.search(r'content=["\']([^"\']+)["\'][^>]*property=["\']og:image["\']', html)
+    if m: return m.group(1)
+    return ''
+
 def crawl_site(site: dict) -> list:
     print(f'\n=== {site["sigun"]} ({site["rss"]}) ===')
     try:
@@ -137,6 +147,7 @@ def crawl_site(site: dict) -> list:
             print(f'  ⏭️  이미 종료: {f["title"][:40]} ({end})')
             continue
         place = extract_place(text)
+        image = extract_og_image(detail_html)
         results.append({
             'title': f['title'],
             'eventstartdate': start,
@@ -144,12 +155,14 @@ def crawl_site(site: dict) -> list:
             'addr1': f'{site["sido"]} {site["sigun"]} {place}'.strip() if place else f'{site["sido"]} {site["sigun"]}',
             'mapy': site['lat'],  # 시 중심 좌표 fallback
             'mapx': site['lng'],
+            'firstimage': image,
             'sido_code': site['sido_code'],
             'link': f['link'],
             'pubDate': f['pubDate'],
             'source': f'sigun-rss/{site["sigun"]}',
         })
-        print(f'  ✅ {f["title"][:35]} ({start}~{end}) @ {place or "?"}')
+        img_mark = '🖼️' if image else '  '
+        print(f'  ✅ {img_mark} {f["title"][:35]} ({start}~{end}) @ {place or "?"}')
     return results
 
 def main():

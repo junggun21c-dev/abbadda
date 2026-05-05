@@ -1,5 +1,5 @@
 {
-  "updated": "2026-05-05T03:43:42.050820+00:00",
+  "updated": "2026-05-05T04:08:12.053990+00:00",
   "count": 2,
   "items": [
     {
@@ -9,6 +9,7 @@
       "addr1": "경기 광명시 충현박물관 오리영우 앞",
       "mapy": 37.4781,
       "mapx": 126.8644,
+      "firstimage": "https://cdn.news.gm.go.kr/news/thumbnail/202605/24196_43812_5639_v150.jpg",
       "sido_code": "31",
       "link": "http://news.gm.go.kr/news/articleView.html?idxno=24196",
       "pubDate": "2026-05-04 13:57:01",
@@ -21,6 +22,7 @@
       "addr1": "경기 광명시 광명시민체육관 (오리로 703)",
       "mapy": 37.4781,
       "mapx": 126.8644,
+      "firstimage": "https://cdn.news.gm.go.kr/news/thumbnail/202604/24164_43710_3140_v150.jpg",
       "sido_code": "31",
       "link": "http://news.gm.go.kr/news/articleView.html?idxno=24164",
       "pubDate": "2026-04-16 15:31:51",

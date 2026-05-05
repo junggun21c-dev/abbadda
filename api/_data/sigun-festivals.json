@@ -1,0 +1,30 @@
+{
+  "updated": "2026-05-05T03:43:42.050820+00:00",
+  "count": 2,
+  "items": [
+    {
+      "title": "제34회 오리문화제 조선의 청백리, 이원익을 만나다",
+      "eventstartdate": "20260508",
+      "eventenddate": "20260508",
+      "addr1": "경기 광명시 충현박물관 오리영우 앞",
+      "mapy": 37.4781,
+      "mapx": 126.8644,
+      "sido_code": "31",
+      "link": "http://news.gm.go.kr/news/articleView.html?idxno=24196",
+      "pubDate": "2026-05-04 13:57:01",
+      "source": "sigun-rss/광명시"
+    },
+    {
+      "title": "제104회 어린이날 축제",
+      "eventstartdate": "20260505",
+      "eventenddate": "20260505",
+      "addr1": "경기 광명시 광명시민체육관 (오리로 703)",
+      "mapy": 37.4781,
+      "mapx": 126.8644,
+      "sido_code": "31",
+      "link": "http://news.gm.go.kr/news/articleView.html?idxno=24164",
+      "pubDate": "2026-04-16 15:31:51",
+      "source": "sigun-rss/광명시"
+    }
+  ]
+}

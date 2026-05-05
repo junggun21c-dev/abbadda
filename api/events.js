@@ -1,3 +1,16 @@
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+
+// 시군청 보도자료 RSS 크롤 결과 (GitHub Actions cron으로 매일 갱신)
+const __evt_dirname = dirname(fileURLToPath(import.meta.url));
+let SIGUN_DATA = { items: [] };
+try {
+  SIGUN_DATA = JSON.parse(readFileSync(join(__evt_dirname, '_data', 'sigun-festivals.json'), 'utf-8'));
+} catch (e) {
+  console.warn('[events.js] sigun-festivals.json 로드 실패:', e.message);
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   if (req.method === 'OPTIONS') return res.status(200).end();
@@ -264,7 +277,33 @@ export default async function handler(req, res) {
     } catch {}
   };
 
-  // ── 6) 전국문화축제표준데이터 (공공데이터포털 · 지자체 소규모 축제 보완) ──
+  // ── 6) 시군청 보도자료 RSS 크롤 데이터 (정적 JSON · 매일 GitHub Actions로 갱신) ──
+  // 시청 자체 보도자료라 데이터 신선도·정확도 가장 높음 (광명시 등 단계적 추가)
+  const fetchSigunRss = async () => {
+    for (const it of (SIGUN_DATA.items || [])) {
+      if (!codes.includes(it.sido_code)) continue;
+      if (it.eventenddate && it.eventenddate.length === 8 && it.eventenddate < todayCompact) continue;
+      const key = 'sigunrss_' + (it.title || '') + (it.eventstartdate || '');
+      if (seen.has(key)) continue;
+      seen.add(key);
+      allItems.push({
+        title: it.title || '',
+        eventstartdate: it.eventstartdate || '',
+        eventenddate: it.eventenddate || '',
+        addr1: it.addr1 || '',
+        mapy: it.mapy || null,
+        mapx: it.mapx || null,
+        contentid: key,
+        firstimage: '',
+        url: it.link || '',
+        usefee: '',
+        usetimefestival: '',
+        codename: '축제',
+      });
+    }
+  };
+
+  // ── 7) 전국문화축제표준데이터 (공공데이터포털 · 지자체 소규모 축제 보완) ──
   // 지역 필터 파라미터 미지원 → 전체 1,269건을 2페이지로 병렬 fetch, insttNm으로 지역 필터
   const fetchPublicFestival = async () => {
     const sidos = [...new Set(codes.map(c => AREA_TO_SIDO[c]).filter(Boolean))];
@@ -325,6 +364,8 @@ export default async function handler(req, res) {
     tasks.push(fetchKcisa());
     // 경기데이터드림: 경기(areaCode=31) 포함 시 보강
     tasks.push(fetchGyeonggi());
+    // 시군청 보도자료 RSS 크롤 (정적 JSON, 가장 신선)
+    tasks.push(fetchSigunRss());
     // 전국문화축제표준데이터: 요청 1회로 전체 fetch 후 지역 필터
     tasks.push(fetchPublicFestival());
     await Promise.all(tasks);

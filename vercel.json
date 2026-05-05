@@ -5,7 +5,8 @@
       "maxDuration": 60
     },
     "api/events.js": {
-      "maxDuration": 30
+      "maxDuration": 30,
+      "includeFiles": "api/_data/**"
     },
     "api/places.js": {
       "maxDuration": 20

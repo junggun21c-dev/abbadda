@@ -1,14 +1,19 @@
-import { readFileSync } from 'fs';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
-
-// 시군청 보도자료 RSS 크롤 결과 (GitHub Actions cron으로 매일 갱신)
-const __evt_dirname = dirname(fileURLToPath(import.meta.url));
-let SIGUN_DATA = { items: [] };
-try {
-  SIGUN_DATA = JSON.parse(readFileSync(join(__evt_dirname, '_data', 'sigun-festivals.json'), 'utf-8'));
-} catch (e) {
-  console.warn('[events.js] sigun-festivals.json 로드 실패:', e.message);
+// 시군청 보도자료 RSS 크롤 결과 (handler 안에서 dynamic load — top-level fs/url 호환성 회피)
+let _SIGUN_DATA_CACHE = null;
+async function loadSigunData() {
+  if (_SIGUN_DATA_CACHE) return _SIGUN_DATA_CACHE;
+  try {
+    const fs = await import('fs/promises');
+    const path = await import('path');
+    const url = await import('url');
+    const dir = path.dirname(url.fileURLToPath(import.meta.url));
+    const raw = await fs.readFile(path.join(dir, '_data', 'sigun-festivals.json'), 'utf-8');
+    _SIGUN_DATA_CACHE = JSON.parse(raw);
+  } catch (e) {
+    console.warn('[events.js] sigun data load failed:', e.message);
+    _SIGUN_DATA_CACHE = { items: [] };
+  }
+  return _SIGUN_DATA_CACHE;
 }
 
 export default async function handler(req, res) {
@@ -280,6 +285,7 @@ export default async function handler(req, res) {
   // ── 6) 시군청 보도자료 RSS 크롤 데이터 (정적 JSON · 매일 GitHub Actions로 갱신) ──
   // 시청 자체 보도자료라 데이터 신선도·정확도 가장 높음 (광명시 등 단계적 추가)
   const fetchSigunRss = async () => {
+    const SIGUN_DATA = await loadSigunData();
     for (const it of (SIGUN_DATA.items || [])) {
       if (!codes.includes(it.sido_code)) continue;
       if (it.eventenddate && it.eventenddate.length === 8 && it.eventenddate < todayCompact) continue;

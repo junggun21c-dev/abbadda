@@ -10,7 +10,6 @@
 // 5) 모두 실패 → 1x1 transparent PNG (클라이언트가 emoji fallback)
 
 import { kvGet, kvSet } from './_kv.js';
-import { createHash } from 'crypto';
 
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36';
 // 1x1 투명 PNG (실패 시 폴백 — 클라이언트는 onerror로 emoji fallback 가능)
@@ -19,8 +18,11 @@ const TRANSPARENT_PNG = Buffer.from(
   'base64'
 );
 
+// 단순 djb2 hash (crypto 의존성 제거 - ESM 호환성 회피)
 function hash(s) {
-  return createHash('md5').update(s).digest('hex');
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  return Math.abs(h).toString(36);
 }
 
 function extractOgImage(html) {
